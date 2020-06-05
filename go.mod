@@ -1,4 +1,4 @@
-module gopher-tools
+module github.com/jjxxs/gopher-tools
 
 go 1.14
 
