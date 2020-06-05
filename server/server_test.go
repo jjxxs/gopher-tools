@@ -20,8 +20,8 @@ import (
 
 const (
 	port                  = 9042
-	concurrentConnections = 10 * 1000
-	txsPerConnection      = 100
+	concurrentConnections = 1000
+	txsPerConnection      = 10
 	wsEndpoint            = "/ws"
 )
 

@@ -10,7 +10,7 @@ type ConnectionHandler interface {
 }
 
 /*
- * multiplexConnectionHandler - combines multiple connection-handlers into one
+ * multiplexConnectionHandler - aggregates multiple connection-handlers into one
  */
 
 type multiplexConnectionHandler struct {
