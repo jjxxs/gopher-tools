@@ -10,7 +10,7 @@ var (
 )
 
 // Provides thread-safe access to buses with a specified name.
-// This can be used as a singleton store of concrete buses.
+// This can be used as a singleton store of bus singletons.
 func GetBusFromFactory(name string) Bus {
 	var bus interface{}
 

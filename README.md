@@ -1,6 +1,4 @@
 ## gopher-tools
-[![Build Status](https://travis-ci.org/jjxxs/gopher-tools.svg?branch=master)](https://travis-ci.org/jjxxs/gopher-tools)
-
 A collection of tools and components for use in the backend. The design goal is to provide bare-bone functionality with fitting abstractions to easily extend and adapt to new use-cases.
 
 ## Overview
@@ -8,10 +6,10 @@ A collection of tools and components for use in the backend. The design goal is 
 ### Bus
 
 ##### bus.GetBusFromFactory()
-Provides thread-safe access a bus with a specified name. This can be used as a store of named bus-singletons.
+Provides thread-safe access to buses with a specified name. This can be used as a store of concrete bus singletons.
 
 ##### bus.Bus
-A Bus provides a loosely coupled implementation of the publish-subscriber pattern.
+A Bus implements a loosely coupled implementation of the publish-subscriber pattern.
 
 ### Config
 
@@ -30,7 +28,7 @@ A server serves static files via http and can also accept incoming websocket-con
 A connection represents a connection made by the server, e.g. a connected websocket.
 
 ##### server.bufferedWebsocketConnection
-A buffered websocket-connection buffers incoming/outgoing messages before they are processed.
+A buffered websocket-connection buffers incoming/outgoing messages and provides means to read and write to/from these buffers via channels.
 
 ##### server.ConnectionHandler
 A connection-handler handles connections made by the server.
@@ -38,9 +36,9 @@ A connection-handler handles connections made by the server.
 ##### server.multiplexConnectionHandler
 A multiplex connection-handler aggregates multiple connection-handlers into a single connection-handler.
 
-### Signal
+###Signal
 
-##### signal.Handle()
+##### signal.Handle
 Handles a specified signal with the given function. This is a comfortable interface for the most common use-case. Uses a signal-Handler singleton.
 
 ##### signal.Handler

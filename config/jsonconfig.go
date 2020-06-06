@@ -10,7 +10,7 @@ import (
 )
 
 // Represents a json-formatted file-based configuration
-type jsonConfigImpl struct {
+type jsonConfig struct {
 	config interface{}
 	path   string
 	file   *os.File
@@ -20,7 +20,7 @@ type jsonConfigImpl struct {
 // Loads a configuration from a json-formatted file located
 // at the specified path, returns error on failure
 func NewJsonFileConfig(path string) (Config, error) {
-	c := jsonConfigImpl{
+	c := jsonConfig{
 		config: nil,
 		path:   path,
 		file:   nil,
@@ -40,11 +40,11 @@ func NewJsonFileConfig(path string) (Config, error) {
 	return &c, nil
 }
 
-func (c *jsonConfigImpl) GetConfig() interface{} {
+func (c *jsonConfig) GetConfig() interface{} {
 	return c.config
 }
 
-func (c *jsonConfigImpl) Transaction(mutator func(config interface{})) error {
+func (c *jsonConfig) Transaction(mutator func(config interface{})) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -59,13 +59,13 @@ func (c *jsonConfigImpl) Transaction(mutator func(config interface{})) error {
 	return nil
 }
 
-func (c *jsonConfigImpl) Exit() {
+func (c *jsonConfig) Exit() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	_ = c.saveConfig()
 }
 
-func (c *jsonConfigImpl) loadConfig() error {
+func (c *jsonConfig) loadConfig() error {
 	if _, err := c.file.Seek(0, 0); err != nil {
 		return errors.New(fmt.Sprintf("failed to seek config %s, err=%s", c.path, err))
 	} else if bytes, err := ioutil.ReadAll(c.file); err != nil {
@@ -77,7 +77,7 @@ func (c *jsonConfigImpl) loadConfig() error {
 	return nil
 }
 
-func (c *jsonConfigImpl) saveConfig() error {
+func (c *jsonConfig) saveConfig() error {
 	if bytes, err := json.MarshalIndent(c.config, "", "\t"); err != nil {
 		return errors.New(fmt.Sprintf("failed to marshal config, err=%s", err))
 	} else if err = c.file.Truncate(int64(len(bytes))); err != nil {
