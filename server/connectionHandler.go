@@ -1,18 +1,13 @@
 package server
 
-/*
- * ConnectionHandler - handles connections made by the server
- */
-
+// Handles connections made by a server
 type ConnectionHandler interface {
 	OnConnect(conn Connection)
 	OnDisconnect(conn Connection)
 }
 
-/*
- * multiplexConnectionHandler - aggregates multiple connection-handlers into one
- */
-
+// A multiplexConnectionHandler aggregates multiple connection-handlers
+// into a single connection-handler
 type multiplexConnectionHandler struct {
 	connectionHandlers []ConnectionHandler
 }
