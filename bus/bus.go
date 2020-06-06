@@ -22,7 +22,7 @@ func GetBusFromFactory(name string) Bus {
 	return bus.(Bus)
 }
 
-// A Bus implements a loosely coupled implementation of the publish-subscriber
+// A Bus provides a loosely coupled implementation of the publish-subscriber
 // pattern. Interested consumers can subscribe with a function that is the
 // called with args whenever a producer publishes on the bus.
 const QueueSize = 100
