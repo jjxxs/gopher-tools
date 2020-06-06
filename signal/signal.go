@@ -6,15 +6,13 @@ import (
 	"sync"
 )
 
-/*
- * Handler Singleton
- */
-
+// Holds the singleton
 var (
 	once     = sync.Once{}
 	instance Handler
 )
 
+// Uses a singleton to easily access a handler.
 func Handle(handler func(), signals ...os.Signal) {
 	once.Do(func() {
 		instance = NewHandler()
@@ -23,10 +21,8 @@ func Handle(handler func(), signals ...os.Signal) {
 	instance.Handle(handler, signals...)
 }
 
-/*
- * Handler
- */
-
+// A Handler provides means to register functions that are called
+// when the application receives a specified set of signals
 type Handler interface {
 	Handle(handler func(), signals ...os.Signal)
 	Reset(signals ...os.Signal)
