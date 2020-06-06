@@ -5,10 +5,8 @@ import (
 	"sync"
 )
 
-/*
- * Connection - represents a connection made by the server (e.g. a websocket-connection)
- */
-
+// A Connection represents a connection made by a server, e.g. a
+// websocket-connection
 type Connection interface {
 	GetInput() chan []byte
 	GetOutput() chan []byte
@@ -16,11 +14,8 @@ type Connection interface {
 	String() string
 }
 
-/*
- * BufferedWebsocketConnection - Provides a buffered representation of a websocket-connection
- */
-
 const (
+	// Count of messages to buffer
 	BufferedWebsocketConnectionBufferLength = 100
 )
 
@@ -34,6 +29,7 @@ type bufferedWebsocketConnection struct {
 	stopWrite    chan bool
 }
 
+// A BufferedWebsocketConnection provides a buffered websocket-connection
 func NewBufferedWebsocketConnection(conn *websocket.Conn, onClose func()) Connection {
 	c := &bufferedWebsocketConnection{
 		conn:         conn,

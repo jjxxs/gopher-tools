@@ -10,10 +10,8 @@ import (
 	"time"
 )
 
-/**
- * Server - can serve websockets and static files via http
- */
-
+// A Server serves static files via http and can also
+// accept incoming websocket-connections
 type Server interface {
 	AddFileHandler(pattern string, path string)
 	AddWebsocketHandler(pattern string, handler ConnectionHandler)
@@ -49,10 +47,14 @@ func NewServer(addr string) Server {
 	return s
 }
 
+// Add a new file-path to be served by the server at the
+// specified pattern
 func (s *serverImpl) AddFileHandler(pattern string, path string) {
 	http.Handle(pattern, http.FileServer(http.Dir(path)))
 }
 
+// Add a connection handler that handles connections at
+// the specified pattern
 func (s *serverImpl) AddWebsocketHandler(pattern string, handler ConnectionHandler) {
 	if s.wsConnectionHandler == nil {
 		return
@@ -65,6 +67,7 @@ func (s *serverImpl) AddWebsocketHandler(pattern string, handler ConnectionHandl
 	http.HandleFunc(pattern, s.handleWsRequestWithPattern(pattern))
 }
 
+// Shutdown the server, this closes all connections
 func (s *serverImpl) Exit() {
 	s.run = false
 
