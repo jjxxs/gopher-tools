@@ -12,10 +12,8 @@ var (
 	instance Handler
 )
 
-// Handles a set of signals with the specified function, e.g.
-// the handler-function is called when one of the signals is
-// received
-func Handle(handler func(sig os.Signal), signals ...os.Signal) {
+// Uses a singleton to easily access a handler.
+func Handle(handler func(), signals ...os.Signal) {
 	once.Do(func() {
 		instance = NewHandler()
 	})
@@ -26,14 +24,14 @@ func Handle(handler func(sig os.Signal), signals ...os.Signal) {
 // A Handler provides means to register functions that are called
 // when the application receives a specified set of signals
 type Handler interface {
-	Handle(handler func(sig os.Signal), signals ...os.Signal)
+	Handle(handler func(), signals ...os.Signal)
 	Reset(signals ...os.Signal)
 	Exit()
 }
 
 type handlerImpl struct {
 	mtx     *sync.Mutex
-	handler map[os.Signal][]func(sig os.Signal)
+	handler map[os.Signal][]func()
 	signals chan os.Signal
 	exit    chan bool
 }
@@ -41,7 +39,7 @@ type handlerImpl struct {
 func NewHandler() Handler {
 	h := handlerImpl{
 		mtx:     &sync.Mutex{},
-		handler: make(map[os.Signal][]func(sig os.Signal)),
+		handler: make(map[os.Signal][]func()),
 		signals: make(chan os.Signal, 1),
 		exit:    make(chan bool, 1),
 	}
@@ -51,13 +49,13 @@ func NewHandler() Handler {
 	return &h
 }
 
-func (h *handlerImpl) Handle(handler func(sig os.Signal), signals ...os.Signal) {
+func (h *handlerImpl) Handle(handler func(), signals ...os.Signal) {
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
 
 	for _, sig := range signals {
 		if _, ok := h.handler[sig]; !ok {
-			h.handler[sig] = make([]func(sig os.Signal), 0)
+			h.handler[sig] = make([]func(), 0)
 			signal.Notify(h.signals, sig)
 		}
 		h.handler[sig] = append(h.handler[sig], handler)
@@ -104,7 +102,7 @@ func (h *handlerImpl) handleSignal(sig os.Signal) {
 
 	if _, ok := h.handler[sig]; ok {
 		for _, handler := range h.handler[sig] {
-			handler(sig)
+			handler()
 		}
 	}
 }
