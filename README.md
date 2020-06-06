@@ -28,7 +28,7 @@ A server serves static files via http and can also accept incoming websocket-con
 A connection represents a connection made by the server, e.g. a connected websocket.
 
 ##### server.bufferedWebsocketConnection
-A buffered websocket-connection buffers incoming/outgoing messages and provides means to read and write to/from these buffers via channels.
+A buffered websocket-connection buffers incoming/outgoing messages before they are processed.
 
 ##### server.ConnectionHandler
 A connection-handler handles connections made by the server.
@@ -36,7 +36,7 @@ A connection-handler handles connections made by the server.
 ##### server.multiplexConnectionHandler
 A multiplex connection-handler aggregates multiple connection-handlers into a single connection-handler.
 
-###Signal
+### Signal
 
 ##### signal.Handle
 Handles a specified signal with the given function. This is a comfortable interface for the most common use-case. Uses a signal-Handler singleton.
