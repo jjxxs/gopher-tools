@@ -1,4 +1,6 @@
 ## gopher-tools
+[![Build Status](https://travis-ci.org/jjxxs/gopher-tools.svg?branch=main)](https://travis-ci.org/jjxxs/gopher-tools)
+
 A collection of tools and components for use in the backend. The design goal is to provide bare-bone functionality with fitting abstractions to easily extend and adapt to new use-cases.
 
 ## Overview
