@@ -1,4 +1,6 @@
 ## gopher-tools
+[![Build Status](https://travis-ci.org/jjxxs/gopher-tools.svg?branch=main)](https://travis-ci.org/jjxxs/gopher-tools)
+
 A collection of tools and components for use in the backend. The design goal is to provide bare-bone functionality with fitting abstractions to easily extend and adapt to new use-cases.
 
 ## Overview
@@ -6,10 +8,10 @@ A collection of tools and components for use in the backend. The design goal is 
 ### Bus
 
 ##### bus.GetBusFromFactory()
-Provides thread-safe access to buses with a specified name. This can be used as a store of concrete bus singletons.
+Provides thread-safe access a bus with a specified name. This can be used as a store of named bus-singletons.
 
 ##### bus.Bus
-A Bus implements a loosely coupled implementation of the publish-subscriber pattern.
+A Bus provides a loosely coupled implementation of the publish-subscriber pattern.
 
 ### Config
 
@@ -38,7 +40,7 @@ A multiplex connection-handler aggregates multiple connection-handlers into a si
 
 ### Signal
 
-##### signal.Handle
+##### signal.Handle()
 Handles a specified signal with the given function. This is a comfortable interface for the most common use-case. Uses a signal-Handler singleton.
 
 ##### signal.Handler
