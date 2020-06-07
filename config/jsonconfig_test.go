@@ -21,30 +21,24 @@ type conf2 struct {
 	Prop3 float64 `json:"float64"`
 }
 
-func TestJsonConfig(t *testing.T) {
-	// creates a temporary file and writes a json-formatted test-config
-	// to the file. closes the file and gets the path to instantiate
-	// the subject under test (JsonFileConfig) with
-	file, _ := ioutil.TempFile("", "gopherTools_jsonConfigTest")
-	testCfg := conf{
+var testCfg = conf{
+	Prop1: 1,
+	Prop2: "2",
+	Prop3: 3.3,
+	Prop4: []int{1, 2, 3, 4, 5},
+	Prop5: conf2{
 		Prop1: 1,
 		Prop2: "2",
 		Prop3: 3.3,
-		Prop4: []int{1, 2, 3, 4, 5},
-		Prop5: conf2{
-			Prop1: 1,
-			Prop2: "2",
-			Prop3: 3.3,
-		},
-	}
-	bytes, _ := json.Marshal(&testCfg)
-	_, _ = file.WriteAt(bytes, 0)
-	_ = file.Close()
-	p := file.Name()
+	},
+}
+
+func TestJsonConfig(t *testing.T) {
+	cfgFile := createTemporaryConfig()
 
 	// opening the config should succeed
 	var config Config
-	config, err := NewJsonFileConfig(p)
+	config, err := NewJsonFileConfig(cfgFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +80,7 @@ func TestJsonConfig(t *testing.T) {
 
 	// exit config & reload
 	config.Exit()
-	config, err = NewJsonFileConfig(p)
+	config, err = NewJsonFileConfig(cfgFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,6 +93,16 @@ func TestJsonConfig(t *testing.T) {
 	if !reflect.DeepEqual(testCfg, actualCfg) {
 		t.Fatal("configs are not equal")
 	}
+}
+
+// creates a temporary file and writes a json-formatted test-config
+// to the file. closes the file and returns the path to the file.
+func createTemporaryConfig() string {
+	file, _ := ioutil.TempFile("", "gopherTools_jsonConfigTest")
+	bytes, _ := json.Marshal(&testCfg)
+	_, _ = file.WriteAt(bytes, 0)
+	_ = file.Close()
+	return file.Name()
 }
 
 func convertInterfaceToConf(in interface{}, out *conf) bool {
