@@ -10,7 +10,7 @@ var (
 )
 
 // Provides thread-safe access to buses with a specified name.
-// This can be used as a singleton store of bus singletons.
+// This can be used as a store of bus singletons.
 func GetBusFromFactory(name string) Bus {
 	var bus interface{}
 
@@ -22,8 +22,8 @@ func GetBusFromFactory(name string) Bus {
 	return bus.(Bus)
 }
 
-// A Bus provides a loosely coupled implementation of the publish-subscriber
-// pattern. Interested consumers can subscribe with a function that is the
+// A Bus provides a implementation of a loosely-coupled publish-subscriber
+// pattern. Interested consumers can subscribe with a function that is
 // called with args whenever a producer publishes on the bus.
 const QueueSize = 100
 
