@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -67,11 +66,11 @@ func (c *jsonConfig) Exit() {
 
 func (c *jsonConfig) loadConfig() error {
 	if _, err := c.file.Seek(0, 0); err != nil {
-		return errors.New(fmt.Sprintf("failed to seek config %s, err=%s", c.path, err))
+		return fmt.Errorf("failed to seek config %s, err=%s", c.path, err)
 	} else if bytes, err := ioutil.ReadAll(c.file); err != nil {
-		return errors.New(fmt.Sprintf("failed to read config %s, err=%s", c.path, err))
+		return fmt.Errorf("failed to read config %s, err=%s", c.path, err)
 	} else if err := json.Unmarshal(bytes, &c.config); err != nil {
-		return errors.New(fmt.Sprintf("failed to unmarshal config %s, err=%s", c.path, err))
+		return fmt.Errorf("failed to unmarshal config %s, err=%s", c.path, err)
 	}
 
 	return nil
@@ -79,13 +78,13 @@ func (c *jsonConfig) loadConfig() error {
 
 func (c *jsonConfig) saveConfig() error {
 	if bytes, err := json.MarshalIndent(c.config, "", "\t"); err != nil {
-		return errors.New(fmt.Sprintf("failed to marshal config, err=%s", err))
+		return fmt.Errorf("failed to marshal config, err=%s", err)
 	} else if err = c.file.Truncate(int64(len(bytes))); err != nil {
-		return errors.New(fmt.Sprintf("failed to truncate config %s, err=%s", c.path, err))
+		return fmt.Errorf("failed to truncate config %s, err=%s", c.path, err)
 	} else if _, err = c.file.Seek(0, 0); err != nil {
-		return errors.New(fmt.Sprintf("failed to seek config %s, err=%s", c.path, err))
+		return fmt.Errorf("failed to seek config %s, err=%s", c.path, err)
 	} else if _, err = c.file.Write(bytes); err != nil {
-		return errors.New(fmt.Sprintf("failed to write config %s, err=%s", c.path, err))
+		return fmt.Errorf("failed to write config %s, err=%s", c.path, err)
 	}
 
 	return nil
