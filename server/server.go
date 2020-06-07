@@ -2,97 +2,89 @@ package server
 
 import (
 	"context"
-	"github.com/gorilla/websocket"
 	"log"
-	"net"
 	"net/http"
-	"sync"
+	"os"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
-// A Server serves static files via http and can also
-// accept incoming websocket-connections
+// A Server provides means to deliver static files over http and/or
+// accept incoming websocket-connections.
 type Server interface {
-	AddFileHandler(pattern string, path string)
-	AddWebsocketHandler(pattern string, handler ConnectionHandler)
-	Exit()
+	AddFileHandler(pattern string, path string) error
+	AddWsHandler(pattern string, handler WsHandler, upgrader *websocket.Upgrader)
+	ListenAndServe() error
+	Exit() error
 }
 
 type serverImpl struct {
-	run                    bool
-	server                 *http.Server
-	wsConnectionHandler    map[string]ConnectionHandler
-	wsConnectionHandlerMtx *sync.Mutex
-	wsConnections          map[net.Addr]Connection
-	wsConnectionsMtx       *sync.Mutex
+	run      bool
+	addr     string
+	serveMux *http.ServeMux
+	server   *http.Server
 }
 
 func NewServer(addr string) Server {
 	s := &serverImpl{
-		run:                    true,
-		server:                 &http.Server{Addr: addr},
-		wsConnectionHandler:    make(map[string]ConnectionHandler),
-		wsConnectionHandlerMtx: &sync.Mutex{},
-		wsConnections:          make(map[net.Addr]Connection),
-		wsConnectionsMtx:       &sync.Mutex{},
+		run:      true,
+		addr:     addr,
+		serveMux: http.NewServeMux(),
+		server:   &http.Server{Addr: addr},
 	}
-
-	// start to listen and serve
-	go func() {
-		if err := http.ListenAndServe(addr, nil); err != nil {
-			log.Print(err)
-		}
-	}()
 
 	return s
 }
 
-// Add a new file-path to be served by the server at the
-// specified pattern
-func (s *serverImpl) AddFileHandler(pattern string, path string) {
-	http.Handle(pattern, http.FileServer(http.Dir(path)))
-}
+// Add a new file-path to be served by the server at the specified pattern
+// Returns error of type *PathError if the given path can't be accessed etc.
+func (s *serverImpl) AddFileHandler(pattern string, path string) error {
+	var err error
 
-// Add a connection handler that handles connections at
-// the specified pattern
-func (s *serverImpl) AddWebsocketHandler(pattern string, handler ConnectionHandler) {
-	if s.wsConnectionHandler == nil {
-		return
+	if _, err = os.Stat(path); err == nil {
+		s.serveMux.Handle(pattern, http.FileServer(http.Dir(path)))
 	}
 
-	s.wsConnectionHandlerMtx.Lock()
-	s.wsConnectionHandler[pattern] = handler
-	s.wsConnectionHandlerMtx.Unlock()
-
-	http.HandleFunc(pattern, s.handleWsRequestWithPattern(pattern))
+	return err
 }
 
-// Shutdown the server, this closes all connections
-func (s *serverImpl) Exit() {
+// Adds a websocket-handler that handles connections for the given pattern. Tries
+// to upgrade the initial connection-request with the specified upgrader. If the
+// upgrader is nil, a DemilitarizedWebsocketUpgrader will be used which isn't meant
+// to be used in production as it does not check for csrf.
+func (s *serverImpl) AddWsHandler(pattern string, handler WsHandler, upgrader *websocket.Upgrader) {
+	if upgrader == nil {
+		s.serveMux.HandleFunc(pattern, s.handleWsRequest(handler, DemilitarizedWebsocketUpgrader()))
+	} else {
+		s.serveMux.HandleFunc(pattern, s.handleWsRequest(handler, upgrader))
+	}
+}
+
+// Starts listening for tcp-connections made to the server and handles them
+// with the handlers registered via AddFileHandler()- and AddWsHandler().
+// Handlers can be added before and after calling ListenAndServe()
+func (s *serverImpl) ListenAndServe() error {
+	return http.ListenAndServe(s.addr, s.serveMux)
+}
+
+// Shuts down the server. Gives the underlying server a timeout of five seconds
+// to successfully closeRequest. If this fails, an error is returned.
+func (s *serverImpl) Exit() error {
 	s.run = false
 
-	// close all connected wsConnections
-	s.wsConnectionsMtx.Lock()
-	for _, c := range s.wsConnections {
-		c.Close()
-	}
-	s.wsConnectionsMtx.Unlock()
-
-	// try to shutdown the server
+	// use context, give server five seconds for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	if err := s.server.Shutdown(ctx); err != nil {
-		log.Println(err)
+		return err
 	}
+
+	return nil
 }
 
-var wsUpgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
-}
-
-func (s *serverImpl) handleWsRequestWithPattern(pattern string) func(w http.ResponseWriter, r *http.Request) {
+func (s *serverImpl) handleWsRequest(handler WsHandler, upgrader *websocket.Upgrader) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// if Exit() was called, ignore the request
 		if !s.run {
@@ -100,57 +92,24 @@ func (s *serverImpl) handleWsRequestWithPattern(pattern string) func(w http.Resp
 		}
 
 		// try to upgrade the connection
-		if conn, err := wsUpgrader.Upgrade(w, r, nil); err != nil {
+		if conn, err := upgrader.Upgrade(w, r, nil); err != nil {
 			log.Println(err)
 		} else {
-			s.addWsConnection(pattern, conn)
+			handler.Handle(conn)
 		}
 	}
 }
 
-func (s *serverImpl) addWsConnection(pattern string, conn *websocket.Conn) {
-	var connHandler ConnectionHandler
+// Size of read/write-buffers of the DemilitarizedWebsocketUpgrader
+var DemilitarizedWsUpgraderBufferSize = 1024
 
-	// get connection handler for pattern
-	s.wsConnectionHandlerMtx.Lock()
-	connHandler, _ = s.wsConnectionHandler[pattern]
-	s.wsConnectionHandlerMtx.Unlock()
-	if connHandler == nil {
-		return
+// Websocket-upgrader meant to be used in a demilitarized context. Offers
+// no protection against cross site request forgery (csrf).
+func DemilitarizedWebsocketUpgrader() *websocket.Upgrader {
+	return &websocket.Upgrader{
+		ReadBufferSize:    DemilitarizedWsUpgraderBufferSize,
+		WriteBufferSize:   DemilitarizedWsUpgraderBufferSize,
+		CheckOrigin:       func(r *http.Request) bool { return true },
+		EnableCompression: false,
 	}
-
-	// create new connection
-	removeClientOnClose := func() { s.removeWsConnection(pattern, conn) }
-	connection := NewBufferedWebsocketConnection(conn, removeClientOnClose)
-
-	// inform the registered connection-handler
-	s.wsConnectionHandler[pattern].OnConnect(connection)
-
-	// add connection to map
-	s.wsConnectionsMtx.Lock()
-	s.wsConnections[conn.RemoteAddr()] = connection
-	s.wsConnectionsMtx.Unlock()
-}
-
-func (s *serverImpl) removeWsConnection(pattern string, conn *websocket.Conn) {
-	var connHandler ConnectionHandler
-
-	// get connection handler for pattern
-	s.wsConnectionHandlerMtx.Lock()
-	connHandler = s.wsConnectionHandler[pattern]
-	s.wsConnectionHandlerMtx.Unlock()
-	if connHandler == nil {
-		return
-	}
-
-	s.wsConnectionsMtx.Lock()
-	removeConn := s.wsConnections[conn.RemoteAddr()]
-	if removeConn != nil {
-		// inform the registered connection-handler
-		connHandler.OnDisconnect(removeConn)
-
-		// remove connection from map
-		delete(s.wsConnections, conn.RemoteAddr())
-	}
-	s.wsConnectionsMtx.Unlock()
 }

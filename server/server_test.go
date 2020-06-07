@@ -3,182 +3,224 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
+	"log"
+	"math"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
-/*
- * This test starts the server and registers a websocket-endpoint at 'wsEndpoint'.
- * It will then establish 'concurrentConnections' to the server. After all
- * connections are established, the server will send a message to all connected
- * clients. The clients will then echo back the message. Server and clients will
- * ping-pong the message 2 * 'txsPerConnection' times.
- */
+// This test starts the server and registers a websocket-endpoint at 'wsEndpoint'.
+// It will then establish n='concurrentConnections' to the server. After all
+// connections are established, the server will send a message to all connected
+// clients. The clients will then echo back the message. Server and clients will
+// ping-pong the message m='txsPerConnection' times to simulate a query consisting
+// of a request and a response.
 
 const (
-	port                  = 9042
-	concurrentConnections = 1000
-	txsPerConnection      = 10
-	wsEndpoint            = "/ws"
+	port                  = 9042  // port to use for this test
+	concurrentConnections = 1000  // concurrent connections
+	txsPerConnection      = 100   // transactions per connection
+	wsEndpoint            = "/ws" // servers websocket-endpoint
 )
 
-/*
- * Tests
- */
-
 func TestConcurrentServerConnections(t *testing.T) {
-	// start server
+	// start server at localhost:port
 	server := NewServer(fmt.Sprintf(":%d", port))
-	defer server.Exit()
 
-	// add connection-handler and give server some time to boot up
-	tch := NewTestConnectionHandler()
-	server.AddWebsocketHandler(wsEndpoint, tch)
-	time.Sleep(500 * time.Millisecond)
-
-	// create concurrent connections to server
-	start := time.Now()
-	if err := createClientConnections(); err != nil {
-		t.Fatal(err)
-	}
-	durConnections := time.Since(start)
-	t.Log("established", concurrentConnections, "connections")
-	t.Log("total time to establish connections (s):", durConnections.Seconds())
-	t.Log("avg time per connection (ms):", durConnections.Milliseconds()/int64(concurrentConnections))
-
-	// send message to all clients, they will echo it back
-	start = time.Now()
-	tch.Broadcast()
-
-	totalMessages := 0
-	for range tch.Txs {
-		totalMessages++
-
-		if totalMessages == concurrentConnections*txsPerConnection {
-			break
-		}
-	}
-
-	elapsed := time.Since(start)
-
-	t.Log("transactions per connection:", txsPerConnection)
-	t.Log("total transactions:", concurrentConnections*txsPerConnection)
-	t.Log("total time (ms):", elapsed.Milliseconds())
-	t.Log("avg time per transaction (µs):", elapsed.Microseconds()/int64(totalMessages))
-
-	// close all connections, give server 50µs per connection
-	tch.CloseAll()
-	time.Sleep(50 * time.Microsecond * concurrentConnections)
-
-	// there should be zero connections left
-	if cs := len(tch.Clients); cs > 0 {
-		t.Fatalf("expected zero clients, got %d\n", cs)
-	}
-}
-
-func createClientConnections() error {
-	for i := 0; i < concurrentConnections; i++ {
-		// connect
-		conn, _, err := websocket.DefaultDialer.Dial("ws://localhost:"+strconv.Itoa(port)+wsEndpoint, nil)
-		if err != nil {
-			return err
-		}
-
-		// the client echoes every message it receives
-		go func() {
-			for {
-				t, msg, err := conn.ReadMessage()
-				if err != nil {
-					break
-				}
-
-				err = conn.WriteMessage(t, msg)
-				if err != nil {
-					break
-				}
-			}
-
-			_ = conn.Close()
-		}()
-	}
-
-	return nil
-}
-
-/*
- * Test Connection Handler
- */
-
-type testConnectionHandler struct {
-	mtx     *sync.Mutex
-	Clients map[string]Connection
-	Txs     chan bool
-}
-
-func NewTestConnectionHandler() *testConnectionHandler {
-	return &testConnectionHandler{
-		mtx:     &sync.Mutex{},
-		Clients: make(map[string]Connection),
-		Txs:     make(chan bool, concurrentConnections*txsPerConnection),
-	}
-}
-
-func (t *testConnectionHandler) OnConnect(c Connection) {
-	t.mtx.Lock()
-	t.Clients[c.String()] = c
-	t.mtx.Unlock()
-
-	// handle the connection
+	// add websocket-handler to server and start listening for connection
+	cond := &sync.Cond{L: &sync.Mutex{}}
+	testWsHandler := NewTestWsHandler(cond)
+	server.AddWsHandler(wsEndpoint, testWsHandler, nil)
 	go func() {
-		txs := 0
-		for i := range c.GetInput() {
-			c.GetOutput() <- i
-			t.Txs <- true
-			txs++
-			if txs >= txsPerConnection {
-				break
-			}
+		err := server.ListenAndServe()
+		if err != nil {
+			log.Fatal(err)
 		}
 	}()
+	time.Sleep(100 * time.Millisecond) // give ListenAndServe() go-routine some time to execute
+
+	// create concurrent connections to server and output statistics
+	concurrentConnectionsWithStats(t)
+
+	// send message to all clients
+	broadcastMsgWithStats(t, testWsHandler)
+
+	// wait until all transactions are done
+	cond.Broadcast()
+	waitForTransactionsWithStats(t, testWsHandler)
+
+	// exiting the server should return no error
+	if err := server.Exit(); err != nil {
+		t.Fatal(err)
+	}
 }
 
-func (t *testConnectionHandler) OnDisconnect(conn Connection) {
-	t.mtx.Lock()
-	delete(t.Clients, conn.String())
-	t.mtx.Unlock()
-}
-
-func (t *testConnectionHandler) Broadcast() {
-	type myMessage struct {
+func broadcastMsgWithStats(t *testing.T, wsHandler BroadcastWsHandler) {
+	type testMessage struct {
 		Uuid    string `json:"uuid"`
 		Method  string `json:"method"`
 		Payload string `json:"payload"`
 	}
-
-	t.mtx.Lock()
-	for _, v := range t.Clients {
-		msg := myMessage{
-			Uuid:    "test-test-test-test",
-			Method:  "some-method",
-			Payload: "some-payload",
-		}
-
-		if bytes, err := json.Marshal(&msg); err != nil {
-			return
-		} else {
-			v.GetOutput() <- bytes
-		}
+	msg := testMessage{
+		Uuid:    "test-test-test-test",
+		Method:  "some-method",
+		Payload: "some-payload",
 	}
-	t.mtx.Unlock()
+	bytes, _ := json.Marshal(&msg)
+
+	start := time.Now()
+	wsHandler.Broadcast(bytes)
+	since := time.Since(start)
+	t.Log("sent", len(bytes), "bytes as broadcast:")
+	t.Log("time total (ms):", since.Milliseconds())
+	t.Log("time avg (µs):", since.Microseconds()/concurrentConnections)
 }
 
-func (t *testConnectionHandler) CloseAll() {
-	t.mtx.Lock()
-	for _, c := range t.Clients {
-		c.Close()
+func waitForTransactionsWithStats(t *testing.T, handler *testWsHandler) {
+	totalMessages := 0
+	min, max := int64(math.MaxInt64), int64(math.MinInt64)
+	start := time.Now()
+	for tx := range handler.Txs {
+		totalMessages++
+		if totalMessages >= concurrentConnections*txsPerConnection {
+			break
+		}
+
+		if min > tx {
+			min = tx
+		} else if max < tx {
+			max = tx
+		}
 	}
-	t.mtx.Unlock()
+	since := time.Since(start)
+	t.Log("finished", concurrentConnections*txsPerConnection, "transactions:")
+	t.Log("tx time total (ms):", since.Milliseconds())
+	t.Log("tx time avg (µs)", since.Microseconds()/int64(txsPerConnection*concurrentConnections))
+	t.Log("tx time max (µs)", max)
+	t.Log("tx time min (µs)", min)
+}
+
+func concurrentConnectionsWithStats(t *testing.T) {
+	// make connections
+	connDelays := make([]int64, concurrentConnections)
+	for i := 0; i < concurrentConnections; i++ {
+		if delay, err := connectWithEchoClient(); err != nil {
+			t.Fatal(err)
+		} else {
+			connDelays[i] = delay
+		}
+	}
+
+	// output statistics
+	min, max, sum := int64(math.MaxInt64), int64(math.MinInt64), int64(0)
+	for _, t := range connDelays {
+		if min > t {
+			min = t
+		} else if max < t {
+			max = t
+		}
+		sum += t
+	}
+	t.Log("established", concurrentConnections, "connections to server in:")
+	t.Log("conn time total (ms):", sum)
+	t.Log("conn time avg (µs):", sum/concurrentConnections)
+	t.Log("conn time max (µs):", max)
+	t.Log("conn time min (µs):", min)
+}
+
+// creates a connection to the specified port and endpoint.
+// the connection then echoes every message that is received
+// until an error occurs. measures how long it takes to connect
+// and returns the duration in milliseconds. the returned error
+// is always nil unless the client failed to connect to the server.
+func connectWithEchoClient() (int64, error) {
+
+	// connect, measure how long it takes
+	start := time.Now()
+	conn, _, err := websocket.DefaultDialer.Dial("ws://localhost:"+strconv.Itoa(port)+wsEndpoint, nil)
+	dur := time.Since(start)
+	if err != nil {
+		return dur.Microseconds(), err
+	}
+
+	// the client echoes every message it receives
+	go func() {
+		for {
+			t, msg, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+
+			err = conn.WriteMessage(t, msg)
+			if err != nil {
+				break
+			}
+		}
+
+		_ = conn.Close()
+	}()
+
+	return dur.Microseconds(), nil
+}
+
+// testWsHandler starts a go-routine for every connection
+// which reads from the connection and echoes the received
+// data back to the server
+type testWsHandler struct {
+	cond    *sync.Cond
+	mtx     *sync.RWMutex
+	clients map[string]WsConnection
+	Txs     chan int64
+}
+
+func NewTestWsHandler(cond *sync.Cond) *testWsHandler {
+	return &testWsHandler{
+		cond:    cond,
+		mtx:     &sync.RWMutex{},
+		clients: make(map[string]WsConnection),
+		Txs:     make(chan int64, concurrentConnections*txsPerConnection),
+	}
+}
+
+func (h *testWsHandler) Handle(conn *websocket.Conn) {
+	c := NewBufferedWsConnection(conn)
+
+	h.mtx.Lock()
+	h.clients[conn.RemoteAddr().String()] = c
+	h.mtx.Unlock()
+
+	// read n=txsPerConnection messages and echo them back to the server
+	go func() {
+		h.cond.L.Lock()
+		h.cond.Wait()
+		h.cond.L.Unlock()
+		for txs := 0; txs < txsPerConnection; txs++ {
+			start := time.Now()
+			in := <-c.Input()
+			c.Output() <- in
+			h.Txs <- time.Since(start).Microseconds()
+		}
+	}()
+}
+
+func (h *testWsHandler) Broadcast(msg []byte) {
+	h.mtx.RLock()
+	defer h.mtx.RUnlock()
+
+	for _, c := range h.clients {
+		c.Output() <- msg
+	}
+}
+
+func (h *testWsHandler) Close() {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
+	for _, v := range h.clients {
+		v.Close()
+	}
+	h.clients = make(map[string]WsConnection)
 }
