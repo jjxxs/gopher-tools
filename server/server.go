@@ -13,8 +13,11 @@ import (
 // A Server provides means to deliver static files over http and/or
 // accept incoming websocket-connections.
 type Server interface {
-	AddFileHandler(pattern string, path string) error
+	AddHttpFileServer(pattern string, path string) error
+	AddHttpHandler(pattern string, handler func(http.ResponseWriter, *http.Request))
 	AddWsHandler(pattern string, handler WsHandler, upgrader *websocket.Upgrader)
+	GetUnderlyingServer() *http.Server
+	GetUnderlyingServeMux() *http.ServeMux
 	ListenAndServe() error
 	Exit() error
 }
@@ -39,7 +42,7 @@ func NewServer(addr string) Server {
 
 // Add a new file-path to be served by the server at the specified pattern
 // Returns error of type *PathError if the given path can't be accessed etc.
-func (s *serverImpl) AddFileHandler(pattern string, path string) error {
+func (s *serverImpl) AddHttpFileServer(pattern string, path string) error {
 	var err error
 
 	if _, err = os.Stat(path); err == nil {
@@ -47,6 +50,10 @@ func (s *serverImpl) AddFileHandler(pattern string, path string) error {
 	}
 
 	return err
+}
+
+func (s *serverImpl) AddHttpHandler(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	s.serveMux.HandleFunc(pattern, handler)
 }
 
 // Adds a websocket-handler that handles connections for the given pattern. Tries
@@ -62,7 +69,7 @@ func (s *serverImpl) AddWsHandler(pattern string, handler WsHandler, upgrader *w
 }
 
 // Starts listening for tcp-connections made to the server and handles them
-// with the handlers registered via AddFileHandler()- and AddWsHandler().
+// with the handlers registered via AddHttpFileServer()- and AddWsHandler().
 // Handlers can be added before and after calling ListenAndServe()
 func (s *serverImpl) ListenAndServe() error {
 	return http.ListenAndServe(s.addr, s.serveMux)
@@ -82,6 +89,14 @@ func (s *serverImpl) Exit() error {
 	}
 
 	return nil
+}
+
+func (s *serverImpl) GetUnderlyingServer() *http.Server {
+	return s.server
+}
+
+func (s *serverImpl) GetUnderlyingServeMux() *http.ServeMux {
+	return s.serveMux
 }
 
 func (s *serverImpl) handleWsRequest(handler WsHandler, upgrader *websocket.Upgrader) func(w http.ResponseWriter, r *http.Request) {

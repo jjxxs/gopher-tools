@@ -22,7 +22,7 @@ import (
 
 const (
 	port                  = 9042  // port to use for this test
-	concurrentConnections = 10000 // concurrent connections
+	concurrentConnections = 1000  // concurrent connections
 	txsPerConnection      = 100   // transactions per connection
 	wsEndpoint            = "/ws" // servers websocket-endpoint
 )
