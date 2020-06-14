@@ -81,7 +81,9 @@ func (c *BufferedWsConnection) Close() {
 		c.stopRead <- true
 		c.stopWrite <- true
 		_ = c.conn.Close()
-		go c.closeHandler(c)
+		if c.closeHandler != nil {
+			c.closeHandler(c)
+		}
 	})
 }
 
