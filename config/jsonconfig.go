@@ -9,24 +9,24 @@ import (
 )
 
 // Represents a json-formatted file-based configuration
-type jsonConfig struct {
-	config interface{}
+type jsonFileConfigProvider struct {
+	config Config
 	path   string
 	file   *os.File
 	mutex  *sync.Mutex
 }
 
-// Loads a configuration from a json-formatted file located
+// Provides a configuration from a json-formatted file located
 // at the specified path, returns error on failure
-func NewJsonFileConfig(path string) (Config, error) {
-	c := jsonConfig{
-		config: nil,
+func NewJsonFileConfigProvider(path string) (Provider, error) {
+	c := jsonFileConfigProvider{
+		config: Config{},
 		path:   path,
 		file:   nil,
 		mutex:  &sync.Mutex{},
 	}
 
-	if file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644); err != nil {
+	if file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0600); err != nil {
 		return nil, err
 	} else {
 		c.file = file
@@ -39,11 +39,11 @@ func NewJsonFileConfig(path string) (Config, error) {
 	return &c, nil
 }
 
-func (c *jsonConfig) GetConfig() interface{} {
+func (c *jsonFileConfigProvider) GetConfig() Config {
 	return c.config
 }
 
-func (c *jsonConfig) Transaction(mutator func(config interface{})) error {
+func (c *jsonFileConfigProvider) Transaction(mutator func(config Config) Config) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -58,13 +58,13 @@ func (c *jsonConfig) Transaction(mutator func(config interface{})) error {
 	return nil
 }
 
-func (c *jsonConfig) Exit() {
+func (c *jsonFileConfigProvider) Exit() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	_ = c.saveConfig()
 }
 
-func (c *jsonConfig) loadConfig() error {
+func (c *jsonFileConfigProvider) loadConfig() error {
 	if _, err := c.file.Seek(0, 0); err != nil {
 		return fmt.Errorf("failed to seek config %s, err=%s", c.path, err)
 	} else if bytes, err := ioutil.ReadAll(c.file); err != nil {
@@ -76,7 +76,7 @@ func (c *jsonConfig) loadConfig() error {
 	return nil
 }
 
-func (c *jsonConfig) saveConfig() error {
+func (c *jsonFileConfigProvider) saveConfig() error {
 	if bytes, err := json.MarshalIndent(c.config, "", "\t"); err != nil {
 		return fmt.Errorf("failed to marshal config, err=%s", err)
 	} else if err = c.file.Truncate(int64(len(bytes))); err != nil {

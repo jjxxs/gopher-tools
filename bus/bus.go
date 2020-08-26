@@ -5,13 +5,14 @@ import (
 	"sync"
 )
 
-var (
-	buss = sync.Map{}
-)
+// Holds named bus-singletons
+var buss = sync.Map{}
 
 // Provides thread-safe access to buses with a specified name.
-// This can be used as a store of bus singletons.
-func GetBusFromFactory(name string) Bus {
+// This can be used as a store of bus singletons. Calling the function
+// with the same name always returns the same reference. Different names
+// always return different references.
+func GetNamedBus(name string) Bus {
 	var bus interface{}
 
 	if bus, _ = buss.Load(name); bus == nil {
@@ -22,32 +23,46 @@ func GetBusFromFactory(name string) Bus {
 	return bus.(Bus)
 }
 
-// A Bus provides a implementation of a loosely-coupled publish-subscriber
-// pattern. Interested consumers can subscribe with a function that is
-// called with args whenever a producer publishes on the bus.
-const QueueSize = 100
+// Size of the buffer for published messages
+var QueueSize = 100
 
+// A Bus provides a implementation of a loosely-coupled publish-subscriber
+// pattern. Interested consumers can subscribe with a function that will
+// be called with the published message.
+// Every subscriber has a dedicated go-routine that will deliver the message
+// to the subscriber and a queue is used to buffer pending messages.
 type Bus interface {
-	Publish(args ...interface{})
-	Subscribe(fn interface{})
-	Unsubscribe(fn interface{})
+	// Publishes a message to the bus. For every subscriber, the message
+	// is put into the subscribers queue and delivered in a go-routine dedicated
+	// to that specific subscriber. If a subscribers message-queue is full,
+	// publish will block until it can be added.
+	Publish(arg interface{})
+
+	// Subscribe to the bus. The provided function will be called from a
+	// dedicated go-routine.
+	Subscribe(fn func(arg interface{}))
+
+	// Unsubscribe from the bus.
+	Unsubscribe(fn func(arg interface{}))
+
+	// Closes the bus. All subscribers will be removed from the bus.
 	Close()
 }
 
 type handler struct {
-	callback reflect.Value
-	queue    chan []reflect.Value
+	callback func(arg interface{})
+	queue    chan interface{}
 }
 
 type busImpl struct {
-	rwMutex   sync.RWMutex
+	rwMtx     sync.RWMutex
 	queueSize int
 	handlers  []*handler
 }
 
 func NewBus() Bus {
 	b := &busImpl{
-		rwMutex:   sync.RWMutex{},
+		rwMtx:     sync.RWMutex{},
 		queueSize: QueueSize,
 		handlers:  make([]*handler, 0),
 	}
@@ -55,58 +70,44 @@ func NewBus() Bus {
 	return b
 }
 
-func (b *busImpl) Subscribe(fn interface{}) {
-	// fn not a function, do nothing
-	if reflect.TypeOf(fn).Kind() != reflect.Func {
-		return
-	}
-
+func (b *busImpl) Subscribe(fn func(arg interface{})) {
 	// create new handler
 	h := &handler{
-		callback: reflect.ValueOf(fn),
-		queue:    make(chan []reflect.Value, b.queueSize),
+		callback: fn,
+		queue:    make(chan interface{}, b.queueSize),
 	}
 
-	// call handler with args published on the bus
+	// call handler with arg whenever something is published on the bus
 	go func() {
 		for args := range h.queue {
-			h.callback.Call(args)
+			h.callback(args)
 		}
 	}()
 
 	// add handler
-	b.rwMutex.Lock()
-	defer b.rwMutex.Unlock()
+	b.rwMtx.Lock()
+	defer b.rwMtx.Unlock()
 	b.handlers = append(b.handlers, h)
 }
 
-func (b *busImpl) Publish(args ...interface{}) {
-	rArgs := buildHandlerArgs(args)
-
-	b.rwMutex.RLock()
-	defer b.rwMutex.RUnlock()
-
-	// write args to all handlers
-	for _, h := range b.handlers {
-		h.queue <- rArgs
+func (b *busImpl) Publish(arg interface{}) {
+	b.rwMtx.RLock()
+	defer b.rwMtx.RUnlock()
+	for _, handler := range b.handlers {
+		handler.queue <- arg
 	}
 }
 
-func (b *busImpl) Unsubscribe(fn interface{}) {
-	rv := reflect.ValueOf(fn)
-
-	// fn is not a function
-	if rv.Type().Kind() != reflect.Func {
-		return
-	}
-
+func (b *busImpl) Unsubscribe(fn func(arg interface{})) {
 	var hs []*handler
 
-	b.rwMutex.Lock()
-	defer b.rwMutex.Unlock()
+	b.rwMtx.Lock()
+	defer b.rwMtx.Unlock()
 
+	ptr1 := reflect.ValueOf(fn).Pointer()
 	for _, h := range b.handlers {
-		if h.callback.Pointer() == rv.Pointer() {
+		ptr2 := reflect.ValueOf(h.callback).Pointer()
+		if ptr1 == ptr2 {
 			close(h.queue)
 		} else {
 			hs = append(hs, h)
@@ -122,17 +123,7 @@ func (b *busImpl) Close() {
 		close(h.queue)
 	}
 
-	b.rwMutex.Lock()
-	defer b.rwMutex.Unlock()
+	b.rwMtx.Lock()
+	defer b.rwMtx.Unlock()
 	b.handlers = make([]*handler, 0)
-}
-
-func buildHandlerArgs(args []interface{}) []reflect.Value {
-	reflectedArgs := make([]reflect.Value, len(args))
-
-	for i := 0; i < len(args); i++ {
-		reflectedArgs[i] = reflect.ValueOf(args[i])
-	}
-
-	return reflectedArgs
 }
