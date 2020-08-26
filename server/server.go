@@ -79,7 +79,7 @@ func (s *serverImpl) ListenAndServe() error {
 // to successfully closeRequest. If this fails, an error is returned.
 func (s *serverImpl) Exit() error {
 	s.run = false
-
+  
 	// use context, give server five seconds for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

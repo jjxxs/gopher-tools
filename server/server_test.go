@@ -136,6 +136,12 @@ func waitForTransactionsWithStats(t *testing.T, handler *testWsHandler) {
 	for i, v := range msOverflowHistogram {
 		t.Logf("%8s %8d", fmt.Sprintf("%d-%d", (i+1)*100, (i+2)*100), v)
 	}
+	since := time.Since(start)
+	t.Log("finished", concurrentConnections*txsPerConnection, "transactions:")
+	t.Log("tx time total (ms):", since.Milliseconds())
+	t.Log("tx time avg (µs)", since.Microseconds()/int64(txsPerConnection*concurrentConnections))
+	t.Log("tx time max (µs)", max)
+	t.Log("tx time min (µs)", min)
 }
 
 func concurrentConnectionsWithStats(t *testing.T) {
