@@ -9,12 +9,18 @@ A collection of tools and components for use in the backend. The design goal is 
 ## Overview
 
 ### Bus
+A Bus provides an implementation of a loosely-coupled publish-subscriber pattern. Interested consumers can subscribe with a function that will be called with messaged published on the bus. For every consumer a dedicated go-routine is employed to asynchronously deliver the message. The implementation uses a Queue to buffer pending messages for every consumer.
 
-##### bus.GetBusFromFactory()
-Provides thread-safe access a bus with a specified name. This can be used as a store of named bus-singletons.
+The benchmarks show the performance for the most commonly used messages, e.g. primitive types, structs by value and structs by reference.
+```
+BenchmarkPublishPrimitiveArgsOneSubscriber-12              	11194382	        99 ns/op	       8 B/op	       1 allocs/op
+BenchmarkPublishStructByValueOneSubscriber-12            	 8781723	       134 ns/op	      64 B/op	       1 allocs/op
+BenchmarkPublishStructByValueOneHundredSubscriber-12     	   79690	     14770 ns/op	      64 B/op	       1 allocs/op
+BenchmarkPublishReferenceOneSubscriber-12                	14176437	        89 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPublishReferenceOneHundredSubscriber-12         	   79422	     14813 ns/op	       0 B/op	       0 allocs/op
+```
 
-##### bus.Bus
-A Bus provides a loosely coupled implementation of the publish-subscriber pattern.
+Please note that a separate go-routine and queue is maintained for every subscribed consumer. This allows for some processing to happen in the subscribed function but slows down the bus for lightweight message-delivery.
 
 ### Config
 
