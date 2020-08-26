@@ -82,6 +82,8 @@ func broadcastMsgWithStats(t *testing.T, wsHandler BroadcastWsHandler) {
 
 func waitForTransactionsWithStats(t *testing.T, handler *testWsHandler) {
 	totalMessages := 0
+	msHistogram := make([]int64, 100)
+	msOverflowHistogram := make([]int64, 9)
 	min, max := int64(math.MaxInt64), int64(math.MinInt64)
 	start := time.Now()
 	for tx := range handler.Txs {
@@ -95,6 +97,44 @@ func waitForTransactionsWithStats(t *testing.T, handler *testWsHandler) {
 		} else if max < tx {
 			max = tx
 		}
+
+		bucket := tx / 1000.0
+		if bucket < 100 {
+			msHistogram[bucket]++
+		} else if bucket >= 900 {
+			msOverflowHistogram[8]++
+		} else if bucket >= 800 {
+			msOverflowHistogram[7]++
+		} else if bucket >= 700 {
+			msOverflowHistogram[6]++
+		} else if bucket >= 600 {
+			msOverflowHistogram[5]++
+		} else if bucket >= 500 {
+			msOverflowHistogram[4]++
+		} else if bucket >= 400 {
+			msOverflowHistogram[3]++
+		} else if bucket >= 300 {
+			msOverflowHistogram[2]++
+		} else if bucket >= 200 {
+			msOverflowHistogram[1]++
+		} else if bucket >= 100 {
+			msOverflowHistogram[0]++
+		}
+	}
+	since := time.Since(start)
+	t.Log("finished", totalMessages, "transactions:")
+	t.Log("tx time total (ms):", since.Milliseconds())
+	t.Log("tx time avg (µs)", since.Microseconds()/int64(totalMessages))
+	t.Log("tx time max (µs)", max)
+	t.Log("tx time min (µs)", min)
+	t.Log("tx histogram (0-99ms):")
+	t.Logf("%8s %8s", "ms", "count")
+	for i, v := range msHistogram {
+		t.Logf("%8d %8d", i, v)
+	}
+	t.Log("overflow [n-m):")
+	for i, v := range msOverflowHistogram {
+		t.Logf("%8s %8d", fmt.Sprintf("%d-%d", (i+1)*100, (i+2)*100), v)
 	}
 	since := time.Since(start)
 	t.Log("finished", concurrentConnections*txsPerConnection, "transactions:")

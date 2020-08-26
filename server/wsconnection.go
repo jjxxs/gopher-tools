@@ -8,13 +8,17 @@ import (
 
 // A WsConnection represents a websocket-connection made by a server.
 // It provides high level-access to the connection. The Input()- and
-// Output()-functions can be used to access input/output of the connection
-// and are closed when the underlying connection is shutdown.
+// Output()-functions can be used to access the input/output of the
+// connection. The channels they provide are closed when the connection
+// closes.
 type WsConnection interface {
 	// Provides channel for incoming data, read data received by this ws here
 	Input() chan []byte
 	// Provides channel for outgoing data, write data to be sent here
 	Output() chan []byte
+	// Sets a handler that is called when the connection closes. The
+	// handler will be called exactly once.
+	SetCloseHandler(h func(this WsConnection))
 	// Access to the underlying conn
 	UnderlyingConn() *websocket.Conn
 	// Closes the connection
@@ -30,6 +34,7 @@ type WsConnection interface {
 type BufferedWsConnection struct {
 	conn                      *websocket.Conn
 	closeOnce                 *sync.Once
+	closeHandler              func(this WsConnection)
 	stopRead, stopWrite       chan bool
 	inputBuffer, outputBuffer chan []byte
 }
@@ -63,6 +68,10 @@ func (c *BufferedWsConnection) Output() chan []byte {
 	return c.outputBuffer
 }
 
+func (c *BufferedWsConnection) SetCloseHandler(h func(this WsConnection)) {
+	c.closeHandler = h
+}
+
 func (c *BufferedWsConnection) UnderlyingConn() *websocket.Conn {
 	return c.conn
 }
@@ -72,6 +81,9 @@ func (c *BufferedWsConnection) Close() {
 		c.stopRead <- true
 		c.stopWrite <- true
 		_ = c.conn.Close()
+		if c.closeHandler != nil {
+			c.closeHandler(c)
+		}
 	})
 }
 
