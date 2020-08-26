@@ -6,15 +6,14 @@ import (
 	"time"
 )
 
-/**
- * Tests
- */
+const event1 Event = "event1"
+const event2 Event = "event2"
 
-func TestGetNamedBus(t *testing.T) {
+func TestGetNamedEventBus(t *testing.T) {
 	myNames := []string{"", "t", "te", "tes", "test"}
-	myBuses := []Bus{nil, nil, nil, nil, nil}
+	myBuses := []EventBus{nil, nil, nil, nil, nil}
 	for i, name := range myNames {
-		myBuses[i] = GetNamedBus(name)
+		myBuses[i] = GetNamedEventBus(name)
 	}
 
 	// busses with different names should return different references
@@ -32,7 +31,7 @@ func TestGetNamedBus(t *testing.T) {
 
 	// busses with the same name should always return the same reference
 	for i, name := range myNames {
-		b := GetNamedBus(name)
+		b := GetNamedEventBus(name)
 		ptr1 := reflect.ValueOf(b).Pointer()
 		ptr2 := reflect.ValueOf(myBuses[i]).Pointer()
 		if ptr1 != ptr2 {
@@ -41,100 +40,111 @@ func TestGetNamedBus(t *testing.T) {
 	}
 }
 
-func TestBusSubscribePublishUnsubscribe(t *testing.T) {
+func TestEventBusSubscribePublishUnsubscribe(t *testing.T) {
 	const iterations = 100
-	const beforeSubscription = 1
-	const whenSubscription = 2
-	const afterSubscription = 3
+	const arg = 42
+	sut := GetNamedEventBus("busUnderTest")
 
-	sut := GetNamedBus("busUnderTest")
-	cnt := 0
-	receiver := func(arg interface{}) {
-		if i, ok := arg.(int); ok {
-			// messages that were published before the subscription should not be delivered
-			if i == beforeSubscription {
-				t.Fail()
-			}
-
-			if i == whenSubscription {
-				cnt++
-			}
-
-			// messages that were published after the subscription should not be delivered
-			if i == afterSubscription {
-				t.Fail()
-			}
+	event1Count := 0
+	event1Receiver := func(arg interface{}) {
+		if _, ok := arg.(int); ok {
+			event1Count++
 		} else {
 			t.Fail()
 		}
 	}
 
-	// publishing to a bus that has no subscribers does nothing
-	for i := 0; i < iterations; i++ {
-		sut.Publish(beforeSubscription)
+	event2Count := 0
+	event2Receiver := func(arg interface{}) {
+		if _, ok := arg.(int); ok {
+			event2Count++
+		}
 	}
-	// since messages are delivered asynchronously, wait a little
-	time.Sleep(1 * time.Second)
 
-	// messages published should be visible to subscribers
-	sut.Subscribe(receiver)
+	// subscribe event2 but not event1
+	sut.Subscribe(event2, event2Receiver)
 	for i := 0; i < iterations; i++ {
-		sut.Publish(whenSubscription)
+		// publish to event1 should do nothing, there are no subscribers
+		sut.Publish(event1, arg)
+		// publish to event2 should increment event2Count
+		sut.Publish(event2, arg)
 	}
 	time.Sleep(1 * time.Second)
-	if cnt != iterations {
+	if event1Count != 0 {
+		t.Fail()
+	}
+	if event2Count != iterations {
+		t.Fail()
+	}
+
+	sut.Subscribe(event1, event1Receiver)
+	for i := 0; i < iterations; i++ {
+		// publish to event1 and event2 should be delivered to subscribers
+		sut.Publish(event1, arg)
+		sut.Publish(event2, arg)
+	}
+	time.Sleep(1 * time.Second)
+	if event1Count != iterations {
+		t.Fail()
+	}
+	if event2Count != iterations*2 {
 		t.Fail()
 	}
 
 	// no messages should be received after unsubscribing
-	sut.Unsubscribe(receiver)
+	sut.Unsubscribe(event1, event1Receiver)
 	for i := 0; i < iterations; i++ {
-		sut.Publish(afterSubscription)
+		sut.Publish(event1, arg)
+		sut.Publish(event2, arg)
 	}
 	time.Sleep(1 * time.Second)
+	if event1Count != iterations {
+		t.Fail()
+	}
+	if event2Count != iterations*3 {
+		t.Fail()
+	}
 }
 
 /**
  * Benchmarks
  */
 
-func BenchmarkPublishPrimitiveArgsOneSubscriber(b *testing.B) {
-	bus := NewBus()
+func BenchmarkEventBusPublishPrimitiveArgsOneSubscriber(b *testing.B) {
+	eventBus := NewEventBus()
 
 	fun1Ctr := 0
 	fun1 := func(i interface{}) {
 		fun1Ctr++
 	}
 
-	bus.Subscribe(fun1)
+	eventBus.Subscribe(event1, fun1)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		bus.Publish(i)
+		eventBus.Publish(event1, i)
 	}
 }
 
-// the type to be published
-type myType struct {
+type eventBusArgumentType struct {
 	i int
 	j int
 	s string
 	v []int
 }
 
-// the object to be published
-var myArg = myType{
+var eventBusArgument = myType{
 	i: 1,
 	j: 2,
 	s: "myArg1",
 	v: []int{1, 2, 3},
 }
 
-func BenchmarkPublishStructByValueOneSubscriber(b *testing.B) {
+func BenchmarkEventBusPublishStructByValueOneSubscriber(b *testing.B) {
 	const subscribers = 1
-	sut := NewBus()
+	sut := NewEventBus()
 
 	// the subscribers/receivers - they just increment an integer
 	subs := make([]func(arg interface{}), subscribers)
@@ -147,20 +157,20 @@ func BenchmarkPublishStructByValueOneSubscriber(b *testing.B) {
 
 	// subscribe
 	for i := 0; i < subscribers; i++ {
-		sut.Subscribe(subs[i])
+		sut.Subscribe(event1, subs[i])
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sut.Publish(myArg)
+		sut.Publish(event1, myArg)
 	}
 }
 
-func BenchmarkPublishStructByValueOneHundredSubscriber(b *testing.B) {
+func BenchmarkEventBusPublishStructByValueOneHundredSubscriber(b *testing.B) {
 	const subscribers = 100
-	sut := NewBus()
+	sut := NewEventBus()
 
 	// the subscribers/receivers - they just increment an integer
 	subs := make([]func(arg interface{}), subscribers)
@@ -173,20 +183,20 @@ func BenchmarkPublishStructByValueOneHundredSubscriber(b *testing.B) {
 
 	// subscribe
 	for i := 0; i < subscribers; i++ {
-		sut.Subscribe(subs[i])
+		sut.Subscribe(event1, subs[i])
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sut.Publish(myArg)
+		sut.Publish(event1, myArg)
 	}
 }
 
-func BenchmarkPublishStructByValueOneThousandSubscriber(b *testing.B) {
+func BenchmarkEventBusPublishStructByValueOneThousandSubscriber(b *testing.B) {
 	const subscribers = 1000
-	sut := NewBus()
+	sut := NewEventBus()
 
 	// the subscribers/receivers - they just increment an integer
 	subs := make([]func(arg interface{}), subscribers)
@@ -199,20 +209,20 @@ func BenchmarkPublishStructByValueOneThousandSubscriber(b *testing.B) {
 
 	// subscribe
 	for i := 0; i < subscribers; i++ {
-		sut.Subscribe(subs[i])
+		sut.Subscribe(event1, subs[i])
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sut.Publish(myArg)
+		sut.Publish(event1, myArg)
 	}
 }
 
-func BenchmarkPublishReferenceOneSubscriber(b *testing.B) {
+func BenchmarkEventBusPublishReferenceOneSubscriber(b *testing.B) {
 	const subscribers = 1
-	sut := NewBus()
+	sut := NewEventBus()
 
 	// the subscribers/receivers - they just increment an integer
 	subs := make([]func(arg interface{}), subscribers)
@@ -225,20 +235,20 @@ func BenchmarkPublishReferenceOneSubscriber(b *testing.B) {
 
 	// subscribe
 	for i := 0; i < subscribers; i++ {
-		sut.Subscribe(subs[i])
+		sut.Subscribe(event1, subs[i])
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sut.Publish(&myArg)
+		sut.Publish(event1, &myArg)
 	}
 }
 
-func BenchmarkPublishReferenceOneHundredSubscriber(b *testing.B) {
+func BenchmarkEventBusPublishReferenceOneHundredSubscriber(b *testing.B) {
 	const subscribers = 100
-	sut := NewBus()
+	sut := NewEventBus()
 
 	// the subscribers/receivers - they just increment an integer
 	subs := make([]func(arg interface{}), subscribers)
@@ -251,20 +261,20 @@ func BenchmarkPublishReferenceOneHundredSubscriber(b *testing.B) {
 
 	// subscribe
 	for i := 0; i < subscribers; i++ {
-		sut.Subscribe(subs[i])
+		sut.Subscribe(event1, subs[i])
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sut.Publish(&myArg)
+		sut.Publish(event1, &myArg)
 	}
 }
 
-func BenchmarkPublishReferenceOneThousandSubscriber(b *testing.B) {
+func BenchmarkEventBusPublishReferenceOneThousandSubscriber(b *testing.B) {
 	const subscribers = 100
-	sut := NewBus()
+	sut := NewEventBus()
 
 	// the subscribers/receivers - they just increment an integer
 	subs := make([]func(arg interface{}), subscribers)
@@ -277,13 +287,13 @@ func BenchmarkPublishReferenceOneThousandSubscriber(b *testing.B) {
 
 	// subscribe
 	for i := 0; i < subscribers; i++ {
-		sut.Subscribe(subs[i])
+		sut.Subscribe(event1, subs[i])
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sut.Publish(&myArg)
+		sut.Publish(event1, &myArg)
 	}
 }
