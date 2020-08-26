@@ -98,7 +98,7 @@ func TestBusSubscribePublishUnsubscribe(t *testing.T) {
  * Benchmarks
  */
 
-func BenchmarkBusPrimitiveArgs(b *testing.B) {
+func BenchmarkPublishPrimitiveArgsOneSubscriber(b *testing.B) {
 	bus := NewBus()
 
 	fun1Ctr := 0

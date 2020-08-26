@@ -55,7 +55,7 @@ type handler struct {
 }
 
 type busImpl struct {
-	rwMtx     sync.RWMutex
+	rwMtx     *sync.RWMutex
 	queueSize int
 	handlers  []*handler
 }
@@ -63,7 +63,7 @@ type busImpl struct {
 // Creates a new Bus
 func NewBus() Bus {
 	b := &busImpl{
-		rwMtx:     sync.RWMutex{},
+		rwMtx:     &sync.RWMutex{},
 		queueSize: QueueSize,
 		handlers:  make([]*handler, 0),
 	}
@@ -119,7 +119,7 @@ func (b *busImpl) Unsubscribe(fn func(arg interface{})) {
 }
 
 func (b *busImpl) Close() {
-	// close all handlers
+	// close all events
 	for _, h := range b.handlers {
 		close(h.queue)
 	}
