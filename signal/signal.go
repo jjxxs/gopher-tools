@@ -12,7 +12,7 @@ var (
 	instance Handler
 )
 
-// Handles a set of signals with the specified function, e.g.
+// Handle - Handles a set of signals with the specified function, e.g.
 // the handler-function is called when one of the signals is
 // received
 func Handle(handler func(sig os.Signal), signals ...os.Signal) {
@@ -23,7 +23,7 @@ func Handle(handler func(sig os.Signal), signals ...os.Signal) {
 	instance.Handle(handler, signals...)
 }
 
-// A Handler provides means to register functions that are called
+// Handler - provides means to register functions that are called
 // when the application receives a specified set of signals
 type Handler interface {
 	Handle(handler func(sig os.Signal), signals ...os.Signal)

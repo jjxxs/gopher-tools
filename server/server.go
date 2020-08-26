@@ -29,6 +29,7 @@ type serverImpl struct {
 	server   *http.Server
 }
 
+// Created a new Server at the specified address.
 func NewServer(addr string) Server {
 	s := &serverImpl{
 		run:      true,
@@ -79,7 +80,7 @@ func (s *serverImpl) ListenAndServe() error {
 // to successfully closeRequest. If this fails, an error is returned.
 func (s *serverImpl) Exit() error {
 	s.run = false
-  
+
 	// use context, give server five seconds for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -115,11 +116,12 @@ func (s *serverImpl) handleWsRequest(handler WsHandler, upgrader *websocket.Upgr
 	}
 }
 
-// Size of read/write-buffers of the DemilitarizedWebsocketUpgrader
+// DemilitarizedWsUpgraderBufferSize is the size of read/write-buffers
 var DemilitarizedWsUpgraderBufferSize = 1024
 
-// Websocket-upgrader meant to be used in a demilitarized context. Offers
-// no protection against cross site request forgery (csrf).
+// DemilitarizedWebsocketUpgrader is a upgrader meant to be used in a
+// demilitarized context. Offers no protection against cross site request
+// forgery (csrf).
 func DemilitarizedWebsocketUpgrader() *websocket.Upgrader {
 	return &websocket.Upgrader{
 		ReadBufferSize:    DemilitarizedWsUpgraderBufferSize,

@@ -7,8 +7,8 @@ import (
 
 var argSeparator = "="
 
-// Tests if a given argument was passed to the process. If so, returns the arguments value.
-// Otherwise falls back to a given default.
+// GetArgumentOrDefault - Tests if a given argument was passed to the process. If so,
+// returns the arguments value. Otherwise falls back to a given default.
 func GetArgumentOrDefault(argName string, def string) string {
 	for _, arg := range os.Args[1:] {
 		if len(arg) <= 1 {

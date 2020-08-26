@@ -8,7 +8,7 @@ import (
 // Holds named bus-singletons
 var buss = sync.Map{}
 
-// Provides thread-safe access to buses with a specified name.
+// GetNamedBus - Provides thread-safe access to buses with a specified name.
 // This can be used as a store of bus singletons. Calling the function
 // with the same name always returns the same reference. Different names
 // always return different references.
@@ -23,7 +23,7 @@ func GetNamedBus(name string) Bus {
 	return bus.(Bus)
 }
 
-// Size of the buffer for published messages
+// QueueSize - Size of the buffer for published messages per subscriber
 var QueueSize = 100
 
 // A Bus provides a implementation of a loosely-coupled publish-subscriber
@@ -60,6 +60,7 @@ type busImpl struct {
 	handlers  []*handler
 }
 
+// Creates a new Bus
 func NewBus() Bus {
 	b := &busImpl{
 		rwMtx:     sync.RWMutex{},

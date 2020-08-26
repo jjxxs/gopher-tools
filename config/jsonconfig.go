@@ -16,8 +16,8 @@ type jsonFileConfigProvider struct {
 	mutex  *sync.Mutex
 }
 
-// Provides a configuration from a json-formatted file located
-// at the specified path, returns error on failure
+// NewJsonFileConfigProvider provides a configuration from a json-formatted
+// file located at the specified path, returns error on failure.
 func NewJsonFileConfigProvider(path string) (Provider, error) {
 	c := jsonFileConfigProvider{
 		config: Config{},

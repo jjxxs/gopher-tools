@@ -1,6 +1,6 @@
 package config
 
-// Config - Add your custom configuration type here
+// Config - Add your custom configuration type here.
 type Config struct {
 	This          int            `json:"this"`
 	Is            string         `json:"is"`
@@ -11,7 +11,7 @@ type Config struct {
 	Me            int            `json:"me"`
 }
 
-// Provides access to a configuration-object
+// Provider - Provides access to a configuration-object.
 type Provider interface {
 	// Retrieves the configuration
 	GetConfig() Config

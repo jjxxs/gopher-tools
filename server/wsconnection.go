@@ -39,11 +39,10 @@ type BufferedWsConnection struct {
 	inputBuffer, outputBuffer chan []byte
 }
 
-// Count of messages to buffer
+// BufferedWebsocketConnectionBufferLength is the length of messages to be buffered by the connection
 var BufferedWebsocketConnectionBufferLength = 100
 
-// A BufferedWsConnection provides high-level access to an underlying
-// websocket-connection.
+// BufferedWsConnection provides high-level access to an underlying websocket-connection.
 func NewBufferedWsConnection(conn *websocket.Conn) WsConnection {
 	c := &BufferedWsConnection{
 		conn:         conn,
