@@ -1,6 +1,10 @@
 package config
 
-import "os"
+import (
+	"errors"
+	"fmt"
+	"os"
+)
 
 // GetEnvironmentOrDefault returns the environment-variable named by key
 // or default if a variable with the key does not exist.
@@ -10,4 +14,14 @@ func GetEnvironmentOrDefault(key, def string) string {
 	}
 
 	return def
+}
+
+// GetEnvironmentOrPanic returns the environment-variable named by key
+// or panics if a variable with the key does not exist.
+func GetEnvironmentOrPanic(key string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+
+	panic(errors.New(fmt.Sprintf("environment variable for %s not set", key)))
 }
