@@ -3,13 +3,13 @@ package common
 import "errors"
 
 const (
-	jsonFailedToMarshal   = "failed to marshal json"
-	jsonFailedToUnmarshal = "failed to unmarshal json"
+	JsonFailedToMarshal   = "failed to marshal json"
+	JsonFailedToUnmarshal = "failed to unmarshal json"
 
-	databaseFailedToConnect = "failed to connect to database"
-	databaseFailedToQuery   = "failed to query database"
-	databaseFailedToExecute = "failed to execute on database"
-	databaseFailedToScanRow = "failed to scan row of database"
+	DatabaseFailedToConnect = "failed to connect to database"
+	DatabaseFailedToQuery   = "failed to query database"
+	DatabaseFailedToExecute = "failed to execute on database"
+	DatabaseFailedToScanRow = "failed to scan row of database"
 )
 
 func Of(errMsg string) error {
