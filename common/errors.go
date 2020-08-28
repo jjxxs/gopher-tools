@@ -10,6 +10,9 @@ const (
 	DatabaseFailedToQuery   = "failed to query database"
 	DatabaseFailedToExecute = "failed to execute on database"
 	DatabaseFailedToScanRow = "failed to scan row of database"
+
+	InvalidRequestType  = "invalid request type"
+	InvalidResponseType = "invalid response type"
 )
 
 func Of(errMsg string) error {
