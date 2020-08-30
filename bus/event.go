@@ -20,11 +20,11 @@ func GetNamedEventBus(name string) EventBus {
 	return eventBus.(EventBus)
 }
 
+type CancelSubscription func()
+
 type EventBus interface {
 	Publish(e Event, arg interface{})
-	Subscribe(e Event, fn func(arg interface{}))
-	Unsubscribe(e Event, fn func(arg interface{}))
-	Close()
+	Subscribe(e Event, fn func(arg interface{})) CancelSubscription
 }
 
 type eventBusImpl struct {
@@ -53,17 +53,23 @@ func (b eventBusImpl) Publish(e Event, arg interface{}) {
 	}
 }
 
-func (b eventBusImpl) Subscribe(e Event, fn func(arg interface{})) {
+func (b eventBusImpl) Subscribe(e Event, fn func(arg interface{})) CancelSubscription {
 	b.rwMtx.Lock()
 	defer b.rwMtx.Unlock()
-	if _, ok := b.events[e]; !ok {
+	if events, ok := b.events[e]; !ok {
 		b.events[e] = []func(arg interface{}){fn}
 	} else {
-		b.events[e] = append(b.events[e], fn)
+		b.events[e] = append(events, fn)
+	}
+
+	o := &sync.Once{}
+
+	return func() {
+		o.Do(func() { b.unsubscribe(e, fn) })
 	}
 }
 
-func (b eventBusImpl) Unsubscribe(e Event, fn func(arg interface{})) {
+func (b eventBusImpl) unsubscribe(e Event, fn func(arg interface{})) {
 	b.rwMtx.Lock()
 	defer b.rwMtx.Unlock()
 	if events, ok := b.events[e]; ok {
@@ -83,10 +89,4 @@ func (b eventBusImpl) Unsubscribe(e Event, fn func(arg interface{})) {
 		}
 		b.events[e] = cbs
 	}
-}
-
-func (b eventBusImpl) Close() {
-	b.rwMtx.Lock()
-	defer b.rwMtx.Unlock()
-	b.events = make(map[Event][]func(arg interface{}))
 }

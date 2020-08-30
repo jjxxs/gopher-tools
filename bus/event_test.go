@@ -77,7 +77,7 @@ func TestEventBusSubscribePublishUnsubscribe(t *testing.T) {
 		t.Fail()
 	}
 
-	sut.Subscribe(event1, event1Receiver)
+	cancelSubscription := sut.Subscribe(event1, event1Receiver)
 	for i := 0; i < iterations; i++ {
 		// publish to event1 and event2 should be delivered to subscribers
 		sut.Publish(event1, arg)
@@ -92,7 +92,7 @@ func TestEventBusSubscribePublishUnsubscribe(t *testing.T) {
 	}
 
 	// no messages should be received after unsubscribing
-	sut.Unsubscribe(event1, event1Receiver)
+	cancelSubscription()
 	for i := 0; i < iterations; i++ {
 		sut.Publish(event1, arg)
 		sut.Publish(event2, arg)
