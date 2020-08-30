@@ -117,6 +117,7 @@ func (c *BufferedWsConnection) tryRead() {
 				if c.eventHandler != nil {
 					c.eventHandler(OnReadError)
 				}
+				return
 			} else {
 				c.inputBuffer <- bytes
 			}
@@ -136,6 +137,7 @@ func (c *BufferedWsConnection) tryWrite() {
 				if c.eventHandler != nil {
 					c.eventHandler(OnWriteError)
 				}
+				return
 			}
 		}
 	}
