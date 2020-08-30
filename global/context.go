@@ -36,7 +36,7 @@ func WaitForShutdownContext(ctx context.Context) error {
 
 // When the given context is cancelled through its cancel-func, the given
 // callback will be called.
-func RegisterShutdownCallback(ctx context.Context, callback func()) error {
+func RegisterOnShutdownCallback(ctx context.Context, callback func()) error {
 	if val := ctx.Value(shutdownGroupKey); val != nil {
 		if shutdownGroup, ok := val.(*sync.WaitGroup); ok {
 			shutdownGroup.Add(1)

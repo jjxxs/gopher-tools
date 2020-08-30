@@ -18,7 +18,7 @@ type WsConnection interface {
 	Output() chan []byte
 	// Sets a handler that is called when the connection closes. The
 	// handler will be called exactly once.
-	SetCloseHandler(h func(this WsConnection))
+	SetCloseHandler(onClose func()) // TODO: instead provide means to add an event-handler for different events 'readError', 'writeError' etc
 	// Access to the underlying conn
 	UnderlyingConn() *websocket.Conn
 	// Closes the connection
@@ -34,7 +34,7 @@ type WsConnection interface {
 type BufferedWsConnection struct {
 	conn                      *websocket.Conn
 	closeOnce                 *sync.Once
-	closeHandler              func(this WsConnection)
+	closeHandler              func()
 	stopRead, stopWrite       chan bool
 	inputBuffer, outputBuffer chan []byte
 }
@@ -52,6 +52,8 @@ func NewBufferedWsConnection(conn *websocket.Conn) WsConnection {
 		inputBuffer:  make(chan []byte, BufferedWebsocketConnectionBufferLength),
 		outputBuffer: make(chan []byte, BufferedWebsocketConnectionBufferLength),
 	}
+
+	conn.CloseHandler()
 
 	go c.tryRead()
 	go c.tryWrite()

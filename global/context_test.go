@@ -12,7 +12,7 @@ func TestShutdownContext(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	for i := 0; i < 10; i++ {
-		if err := RegisterShutdownCallback(ctx, func() { wg.Done() }); err != nil {
+		if err := RegisterOnShutdownCallback(ctx, func() { wg.Done() }); err != nil {
 			t.Fatal(err)
 		}
 		wg.Add(1)
