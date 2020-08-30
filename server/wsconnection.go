@@ -6,6 +6,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type WsConnectionEvent string
+
+const (
+	OnReadError  WsConnectionEvent = "onReadError"
+	OnWriteError WsConnectionEvent = "onWriteError"
+)
+
 // A WsConnection represents a websocket-connection made by a server.
 // It provides high level-access to the connection. The Input()- and
 // Output()-functions can be used to access the input/output of the
@@ -16,9 +23,10 @@ type WsConnection interface {
 	Input() chan []byte
 	// Provides channel for outgoing data, write data to be sent here
 	Output() chan []byte
-	// Sets a handler that is called when the connection closes. The
-	// handler will be called exactly once.
-	SetCloseHandler(onClose func()) // TODO: instead provide means to add an event-handler for different events 'readError', 'writeError' etc
+	// Sets handler that is called whenever a WsConnectionEvent happens
+	SetEventHandler(func(event WsConnectionEvent))
+	// Sets a handler that is called when the connection is closed. The handler will be called exactly once.
+	SetCloseHandler(onClose func())
 	// Access to the underlying conn
 	UnderlyingConn() *websocket.Conn
 	// Closes the connection
@@ -35,6 +43,7 @@ type BufferedWsConnection struct {
 	conn                      *websocket.Conn
 	closeOnce                 *sync.Once
 	closeHandler              func()
+	eventHandler              func(event WsConnectionEvent)
 	stopRead, stopWrite       chan bool
 	inputBuffer, outputBuffer chan []byte
 }
@@ -53,8 +62,6 @@ func NewBufferedWsConnection(conn *websocket.Conn) WsConnection {
 		outputBuffer: make(chan []byte, BufferedWebsocketConnectionBufferLength),
 	}
 
-	conn.CloseHandler()
-
 	go c.tryRead()
 	go c.tryWrite()
 
@@ -69,8 +76,12 @@ func (c *BufferedWsConnection) Output() chan []byte {
 	return c.outputBuffer
 }
 
-func (c *BufferedWsConnection) SetCloseHandler(h func(this WsConnection)) {
-	c.closeHandler = h
+func (c *BufferedWsConnection) SetEventHandler(eventHandler func(event WsConnectionEvent)) {
+	c.eventHandler = eventHandler
+}
+
+func (c *BufferedWsConnection) SetCloseHandler(closeHandler func()) {
+	c.closeHandler = closeHandler
 }
 
 func (c *BufferedWsConnection) UnderlyingConn() *websocket.Conn {
@@ -83,7 +94,7 @@ func (c *BufferedWsConnection) Close() {
 		c.stopWrite <- true
 		_ = c.conn.Close()
 		if c.closeHandler != nil {
-			c.closeHandler(c)
+			c.closeHandler()
 		}
 	})
 }
@@ -101,7 +112,9 @@ func (c *BufferedWsConnection) tryRead() {
 			return
 		default:
 			if _, bytes, err := c.conn.ReadMessage(); err != nil {
-				return
+				if c.eventHandler != nil {
+					c.eventHandler(OnReadError)
+				}
 			} else {
 				c.inputBuffer <- bytes
 			}
@@ -118,7 +131,9 @@ func (c *BufferedWsConnection) tryWrite() {
 			return
 		case msg := <-c.outputBuffer:
 			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-				return
+				if c.eventHandler != nil {
+					c.eventHandler(OnWriteError)
+				}
 			}
 		}
 	}
