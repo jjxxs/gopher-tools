@@ -62,6 +62,8 @@ func NewBufferedWsConnection(conn *websocket.Conn) WsConnection {
 		outputBuffer: make(chan []byte, BufferedWebsocketConnectionBufferLength),
 	}
 
+	conn.CloseHandler()
+
 	go c.tryRead()
 	go c.tryWrite()
 
