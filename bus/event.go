@@ -74,12 +74,6 @@ func (b eventBusImpl) unsubscribe(e Event, fn func(arg interface{})) {
 	defer b.rwMtx.Unlock()
 	if events, ok := b.events[e]; ok {
 		var cbs []func(interface{})
-		if len(events) <= 1 {
-			cbs = make([]func(interface{}), 0)
-		} else {
-			cbs = make([]func(interface{}), len(events)-1)
-		}
-
 		ptr1 := reflect.ValueOf(fn).Pointer()
 		for _, cb := range events {
 			ptr2 := reflect.ValueOf(cb).Pointer()
