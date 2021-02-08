@@ -1,7 +1,5 @@
 package error
 
-import "errors"
-
 const (
 	// JSON
 	JsonFailedToMarshal   = "failed to marshal json"
@@ -17,7 +15,3 @@ const (
 	InvalidRequestType  = "invalid request type"
 	InvalidResponseType = "invalid response type"
 )
-
-func Of(errMsg string) error {
-	return errors.New(errMsg)
-}
