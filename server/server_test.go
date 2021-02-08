@@ -54,7 +54,7 @@ func TestConcurrentServerConnections(t *testing.T) {
 	waitForTransactionsWithStats(t, testWsHandler)
 
 	// exiting the server should return no error
-	if err := server.Exit(); err != nil {
+	if err := server.Shutdown(); err != nil {
 		t.Fatal(err)
 	}
 }

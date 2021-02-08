@@ -19,7 +19,7 @@ type Server interface {
 	GetUnderlyingServer() *http.Server
 	GetUnderlyingServeMux() *http.ServeMux
 	ListenAndServe() error
-	Exit() error
+	Shutdown() error
 }
 
 type serverImpl struct {
@@ -78,7 +78,7 @@ func (s *serverImpl) ListenAndServe() error {
 
 // Shuts down the server. Gives the underlying server a timeout of five seconds
 // to successfully closeRequest. If this fails, an error is returned.
-func (s *serverImpl) Exit() error {
+func (s *serverImpl) Shutdown() error {
 	s.run = false
 
 	// use context, give server five seconds for shutdown
@@ -102,7 +102,7 @@ func (s *serverImpl) GetUnderlyingServeMux() *http.ServeMux {
 
 func (s *serverImpl) handleWsRequest(handler WsHandler, upgrader *websocket.Upgrader) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// if Exit() was called, ignore the request
+		// if Shutdown() was called, ignore the request
 		if !s.run {
 			return
 		}
