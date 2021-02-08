@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="460" height="300" src="https://github.com/jjxxs/gopher-tools/blob/media/.github/media/gopher_tools_small.png">
+</p>
+
 ## gopher-tools
 [![Build Status](https://travis-ci.org/jjxxs/gopher-tools.svg?branch=develop)](https://travis-ci.org/jjxxs/gopher-tools)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jjxxs/gopher-tools)](https://goreportcard.com/report/github.com/jjxxs/gopher-tools)
