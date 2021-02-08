@@ -16,7 +16,9 @@ import (
 	"sync"
 )
 
-const shutdownGroupKey = "shutdownGroup"
+type key string
+
+const shutdownGroupKey key = "shutdownGroupKey"
 
 var invalidWaitGroup = errors.New("context has invalid wait-group")
 var hasNoWaitGroup = errors.New("context has no wait-group")

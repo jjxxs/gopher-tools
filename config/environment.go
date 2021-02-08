@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 )
@@ -23,5 +22,5 @@ func GetEnvironmentOrPanic(key string) string {
 		return val
 	}
 
-	panic(errors.New(fmt.Sprintf("environment variable for %s not set", key)))
+	panic(fmt.Errorf("environment variable for %s not set", key))
 }
