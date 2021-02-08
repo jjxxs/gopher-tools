@@ -2,12 +2,17 @@ package signal
 
 import (
 	"os"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
 )
 
 func TestHandlerShouldCallCallbacks(t *testing.T) {
+	if runtime.GOOS == "windows" { // tests currently only support posix
+		return
+	}
+
 	handler := NewHandler()
 	countSigUsr1 := 0
 	countSigUsr2 := 0
@@ -38,6 +43,10 @@ func TestHandlerShouldCallCallbacks(t *testing.T) {
 }
 
 func TestHandlerShouldNotCallAfterUnregister(t *testing.T) {
+	if runtime.GOOS == "windows" { // tests currently only support posix
+		return
+	}
+
 	handler := NewHandler()
 	countSigUsr1 := 0
 	countSigUsr2 := 0
