@@ -9,27 +9,27 @@ import (
 
 func TestHandlerShouldCallCallbacks(t *testing.T) {
 	handler := NewHandler()
-	countSigAlrm := 0
-	countSigHup := 0
+	countSigUsr1 := 0
+	countSigUsr2 := 0
 	other := 0
 	handler.Register(func(signal os.Signal) {
 		switch signal {
-		case syscall.SIGALRM:
-			countSigAlrm++
-		case syscall.SIGHUP:
-			countSigHup++
+		case syscall.SIGUSR1:
+			countSigUsr1++
+		case syscall.SIGUSR2:
+			countSigUsr2++
 		default:
 			other++
 		}
-	}, syscall.SIGALRM, syscall.SIGHUP)
+	}, syscall.SIGUSR1, syscall.SIGUSR2)
 	p, _ := os.FindProcess(os.Getpid())
-	_ = p.Signal(syscall.SIGALRM)
-	_ = p.Signal(syscall.SIGHUP)
+	_ = p.Signal(syscall.SIGUSR1)
+	_ = p.Signal(syscall.SIGUSR2)
 	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
-	if countSigAlrm != 1 {
+	if countSigUsr1 != 1 {
 		t.Fail()
 	}
-	if countSigHup != 1 {
+	if countSigUsr2 != 1 {
 		t.Fail()
 	}
 	if other != 0 {
@@ -39,32 +39,32 @@ func TestHandlerShouldCallCallbacks(t *testing.T) {
 
 func TestHandlerShouldNotCallAfterUnregister(t *testing.T) {
 	handler := NewHandler()
-	countSigAlrm := 0
-	countSigHup := 0
+	countSigUsr1 := 0
+	countSigUsr2 := 0
 	other := 0
 	cb := func(signal os.Signal) {
 		switch signal {
-		case syscall.SIGALRM:
-			countSigAlrm++
-		case syscall.SIGHUP:
-			countSigHup++
+		case syscall.SIGUSR1:
+			countSigUsr1++
+		case syscall.SIGUSR2:
+			countSigUsr2++
 		default:
 			other++
 		}
 	}
-	handler.Register(cb, syscall.SIGALRM, syscall.SIGHUP)
+	handler.Register(cb, syscall.SIGUSR1, syscall.SIGUSR2)
 	p, _ := os.FindProcess(os.Getpid())
-	_ = p.Signal(syscall.SIGALRM) // these should be received
-	_ = p.Signal(syscall.SIGHUP)
+	_ = p.Signal(syscall.SIGUSR1) // these should be received
+	_ = p.Signal(syscall.SIGUSR2)
 	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
 	handler.Unregister(cb)
-	_ = p.Signal(syscall.SIGALRM) // these shouldn't be received
-	_ = p.Signal(syscall.SIGHUP)
+	_ = p.Signal(syscall.SIGUSR1) // these shouldn't be received
+	_ = p.Signal(syscall.SIGUSR2)
 	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
-	if countSigAlrm != 1 {
+	if countSigUsr1 != 1 {
 		t.Fail()
 	}
-	if countSigHup != 1 {
+	if countSigUsr2 != 1 {
 		t.Fail()
 	}
 	if other != 0 {
