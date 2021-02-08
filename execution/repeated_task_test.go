@@ -20,9 +20,9 @@ func TestRepeatedTaskStart(t *testing.T) {
 	rt.Start()
 	wg.Wait()
 	diff := time.Since(tm)
-	// diff should be ~100ms, allow it to be in [85, 115] so this test
+	// diff should be ~100ms, allow it to be in [80, 120] so this test
 	// doesn't fail on systems that are under heavy load etc.
-	if diff <= 85*time.Millisecond || diff >= 115*time.Millisecond {
+	if diff <= 80*time.Millisecond || diff >= 120*time.Millisecond {
 		t.Fail()
 	}
 }
