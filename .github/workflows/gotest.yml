@@ -1,0 +1,45 @@
+name: Test
+on: [push, pull_request]
+jobs:
+  linux:
+    strategy:
+      matrix:
+        go-version: [1.14.x, 1.15.x]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test
+        run: go test ./...
+  macos:
+    strategy:
+      matrix:
+        go-version: [1.14.x, 1.15.x]
+    runs-on: macos-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test
+        run: go test ./...
+  windows:
+    strategy:
+      matrix:
+        go-version: [1.14.x, 1.15.x]
+    runs-on: windows-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test
+        run: go test ./bus ./config ./execution ./server  # run everything but ./signal on windows

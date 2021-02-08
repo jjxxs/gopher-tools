@@ -3,127 +3,100 @@ package bus
 import (
 	"reflect"
 	"sync"
+	"sync/atomic"
 )
 
-// Holds named bus-singletons
-var buss = sync.Map{}
+// Type of the Message carried by this Bus - change it to a specific type if you want.
+type Message = interface{}
 
-// Provides thread-safe access to buses with a specified name.
-// This can be used as a store of bus singletons. Calling the function
-// with the same name always returns the same reference. Different names
-// always return different references.
-func GetNamedBus(name string) Bus {
-	var bus interface{}
+// Type of the Receiver that subscribe to this Bus - change it to a specific type if you want.
+type Receiver = func(msg Message)
 
-	if bus, _ = buss.Load(name); bus == nil {
-		bus = NewBus()
-		buss.Store(name, bus)
-	}
+// MsgQueueSize - Size of the buffer for published messages per subscriber
+var MsgQueueSize = 1000
 
-	return bus.(Bus)
-}
-
-// Size of the buffer for published messages
-var QueueSize = 100
-
-// A Bus provides a implementation of a loosely-coupled publish-subscriber
-// pattern. Interested consumers can subscribe with a function that will
-// be called with the published message.
-// Every subscriber has a dedicated go-routine that will deliver the message
-// to the subscriber and a queue is used to buffer pending messages.
+// A Bus provides an implementation of a loosely-coupled publish-subscriber
+// pattern. Receiver(s) can subscribe to the Bus and are called whenever a
+// Message is Publish(ed) on the Bus.
 type Bus interface {
-	// Publishes a message to the bus. For every subscriber, the message
-	// is put into the subscribers queue and delivered in a go-routine dedicated
-	// to that specific subscriber. If a subscribers message-queue is full,
-	// publish will block until it can be added.
-	Publish(arg interface{})
+	// Publish a Message on the Bus. This will pass the Message
+	// to all Receiver(s) currently subscribed to this Bus.
+	Publish(msg Message)
 
-	// Subscribe to the bus. The provided function will be called from a
-	// dedicated go-routine.
-	Subscribe(fn func(arg interface{}))
+	// Subscribe to the Bus. The given Receiver will be called
+	// whenever a message is Publish(ed) on the Bus.
+	Subscribe(rcv Receiver)
 
-	// Unsubscribe from the bus.
-	Unsubscribe(fn func(arg interface{}))
+	// Unsubscribe from the Bus. No further Message(s) will be
+	// received.
+	Unsubscribe(rcv Receiver)
 
-	// Closes the bus. All subscribers will be removed from the bus.
+	// Close the Bus. This effectively Unsubscribe(s) all Receiver(s)
+	// and no further Message(s) can be Publish(ed).
 	Close()
 }
 
-type handler struct {
-	callback func(arg interface{})
-	queue    chan interface{}
-}
-
 type busImpl struct {
-	rwMtx     sync.RWMutex
-	queueSize int
-	handlers  []*handler
+	rwMtx  *sync.RWMutex
+	rcvs   []Receiver
+	msgs   chan Message
+	closed *int32
 }
 
 func NewBus() Bus {
-	b := &busImpl{
-		rwMtx:     sync.RWMutex{},
-		queueSize: QueueSize,
-		handlers:  make([]*handler, 0),
+	bus := &busImpl{
+		rwMtx:  &sync.RWMutex{},
+		rcvs:   []Receiver{},
+		msgs:   make(chan Message, MsgQueueSize),
+		closed: new(int32),
 	}
 
-	return b
+	go bus.worker()
+
+	return bus
 }
 
-func (b *busImpl) Subscribe(fn func(arg interface{})) {
-	// create new handler
-	h := &handler{
-		callback: fn,
-		queue:    make(chan interface{}, b.queueSize),
-	}
-
-	// call handler with arg whenever something is published on the bus
-	go func() {
-		for args := range h.queue {
-			h.callback(args)
+func (b *busImpl) worker() {
+	for msg := range b.msgs {
+		b.rwMtx.RLock()
+		for _, rcv := range b.rcvs {
+			rcv(msg)
 		}
-	}()
+		b.rwMtx.RUnlock()
+	}
+}
 
-	// add handler
+func (b *busImpl) Publish(msg Message) {
+	if atomic.CompareAndSwapInt32(b.closed, 0, 0) {
+		b.msgs <- msg
+	}
+}
+
+func (b *busImpl) Subscribe(rcv Receiver) {
 	b.rwMtx.Lock()
 	defer b.rwMtx.Unlock()
-	b.handlers = append(b.handlers, h)
+	b.rcvs = append(b.rcvs, rcv)
 }
 
-func (b *busImpl) Publish(arg interface{}) {
-	b.rwMtx.RLock()
-	defer b.rwMtx.RUnlock()
-	for _, handler := range b.handlers {
-		handler.queue <- arg
-	}
-}
-
-func (b *busImpl) Unsubscribe(fn func(arg interface{})) {
-	var hs []*handler
+func (b *busImpl) Unsubscribe(rcv Receiver) {
+	var rcvs []Receiver
+	rcvPtr1 := reflect.ValueOf(rcv).Pointer()
 
 	b.rwMtx.Lock()
 	defer b.rwMtx.Unlock()
-
-	ptr1 := reflect.ValueOf(fn).Pointer()
-	for _, h := range b.handlers {
-		ptr2 := reflect.ValueOf(h.callback).Pointer()
-		if ptr1 == ptr2 {
-			close(h.queue)
-		} else {
-			hs = append(hs, h)
+	for _, rcv2 := range b.rcvs {
+		rcvPtr2 := reflect.ValueOf(rcv2).Pointer()
+		if rcvPtr1 != rcvPtr2 {
+			rcvs = append(rcvs, rcv2)
 		}
 	}
-
-	b.handlers = hs
+	b.rcvs = rcvs
 }
 
 func (b *busImpl) Close() {
-	// close all handlers
-	for _, h := range b.handlers {
-		close(h.queue)
+	if atomic.CompareAndSwapInt32(b.closed, 0, 1) {
+		b.rwMtx.Lock()
+		defer b.rwMtx.Unlock()
+		close(b.msgs)
 	}
-
-	b.rwMtx.Lock()
-	defer b.rwMtx.Unlock()
-	b.handlers = make([]*handler, 0)
 }
