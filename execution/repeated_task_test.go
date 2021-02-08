@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -16,8 +17,21 @@ func TestRepeatedTaskStart(t *testing.T) {
 			wg.Done()
 		}
 	})
+	tm := time.Now()
 	rt.Start()
 	wg.Wait()
+	diff := time.Since(tm)
+
+	// ignore the following timing requirements completely for github-actions
+	if os.Getenv("GITHUB_WORKFLOW") != "" {
+		return
+	}
+
+	// diff should be ~100ms, allow it to be in [90, 110] so this test
+	// doesn't fail on systems that are under heavy load etc.
+	if diff <= 90*time.Millisecond || diff >= 110*time.Millisecond {
+		t.Fail()
+	}
 }
 
 func TestRepeatedTaskStop(t *testing.T) {

@@ -50,14 +50,14 @@ CPU:    Intel i7-8700k
 goos:   linux
 goarch: amd64
 
-Message-Type   Subscribers     Msgs/s
--------------------------------------------------------------------------
-Primitive                1   14886969   76.6 ns/op   8 B/op   1 allocs/op
-Primitive             1000     737824   1655 ns/op   8 B/op   1 allocs/op
-Struct by Value          1   11013112    106 ns/op  64 B/op   1 allocs/op
-Struct by Value       1000     725788   1723 ns/op  64 B/op   1 allocs/op
-Struct by Reference      1   18971588   66.0 ns/op   0 B/op   0 allocs/op
-Struct by Reference   1000     763729   1665 ns/op   0 B/op   0 allocs/op
+Message-Type         Subscribers     Msgs/s
+-------------------------------------------------------------------------------
+Primitive                      1   14886969   76.6 ns/op   8 B/op   1 allocs/op
+Primitive                   1000     737824   1655 ns/op   8 B/op   1 allocs/op
+Struct by Value                1   11013112    106 ns/op  64 B/op   1 allocs/op
+Struct by Value             1000     725788   1723 ns/op  64 B/op   1 allocs/op
+Struct by Reference            1   18971588   66.0 ns/op   0 B/op   0 allocs/op
+Struct by Reference         1000     763729   1665 ns/op   0 B/op   0 allocs/op
 ```
 
 ### Environment
