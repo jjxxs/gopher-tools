@@ -16,15 +16,8 @@ func TestRepeatedTaskStart(t *testing.T) {
 			wg.Done()
 		}
 	})
-	tm := time.Now()
 	rt.Start()
 	wg.Wait()
-	diff := time.Since(tm)
-	// diff should be ~100ms, allow it to be in [50, 150] so this test
-	// doesn't fail on systems that are under heavy load etc. (github-actions)
-	if diff <= 50*time.Millisecond || diff >= 150*time.Millisecond {
-		t.Fail()
-	}
 }
 
 func TestRepeatedTaskStop(t *testing.T) {
