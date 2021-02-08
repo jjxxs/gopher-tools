@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 )
 
-// Type of the Message carried by this Bus - change it to a specific type if you want. (this will break tests)
+// Type of the Message carried by this Bus - change it to a specific type if you want.
 type Message = interface{}
 
-// Type of the Receiver that subscribe to this Bus - change it to a specific type if you want. (this will break tests)
+// Type of the Receiver that subscribe to this Bus - change it to a specific type if you want.
 type Receiver = func(msg Message)
 
 // MsgQueueSize - Size of the buffer for published messages per subscriber

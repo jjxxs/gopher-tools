@@ -31,3 +31,25 @@ func TestShutdownContext(t *testing.T) {
 	}
 	wg.Wait() // this should return immediately
 }
+
+func TestWaitForShutdownInvalidContext(t *testing.T) {
+	ctx := context.Background()
+	if err := WaitForShutdownContext(ctx); err == nil { // invalid context, not initialized with GetShutdownContext
+		t.Fail()
+	}
+	ctx = context.WithValue(ctx, shutdownGroupKey, "noWaitGroup") // invalid context, not a WaitGroup
+	if err := WaitForShutdownContext(ctx); err == nil {
+		t.Fail()
+	}
+}
+
+func TestRegisterOnShutdownInvalidContext(t *testing.T) {
+	ctx := context.Background()
+	if err := RegisterOnShutdownCallback(ctx, func() {}); err == nil { // invalid context, not initialized with GetShutdownContext
+		t.Fail()
+	}
+	ctx = context.WithValue(ctx, shutdownGroupKey, "noWaitGroup") // invalid context, not a WaitGroup
+	if err := RegisterOnShutdownCallback(ctx, func() {}); err == nil {
+		t.Fail()
+	}
+}

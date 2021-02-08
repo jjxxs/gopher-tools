@@ -116,7 +116,7 @@ func TestBusReceiverShouldNotReceiveAfterBusWasClosed(t *testing.T) {
 func BenchmarkPublishPrimitive__1_Subs(b *testing.B) {
 	bus := NewBus()
 	count := 0
-	bus.Subscribe(func(i interface{}) {
+	bus.Subscribe(func(msg Message) {
 		count++
 	})
 	b.ResetTimer()
@@ -130,7 +130,7 @@ func BenchmarkPublishPrimitive__1000_Subs(b *testing.B) {
 	bus := NewBus()
 	count := 0
 	for i := 0; i < 1000; i++ {
-		bus.Subscribe(func(i interface{}) {
+		bus.Subscribe(func(msg Message) {
 			count++
 		})
 	}
@@ -160,7 +160,7 @@ var benchObj = benchType{
 func BenchmarkPublishStructByValue__1_Subs(b *testing.B) {
 	bus := NewBus()
 	count := 0
-	bus.Subscribe(func(i interface{}) {
+	bus.Subscribe(func(msg Message) {
 		count++
 	})
 	b.ResetTimer()
@@ -174,7 +174,7 @@ func BenchmarkPublishStructByValue__1000_Subs(b *testing.B) {
 	bus := NewBus()
 	count := 0
 	for i := 0; i < 1000; i++ {
-		bus.Subscribe(func(i interface{}) {
+		bus.Subscribe(func(msg Message) {
 			count++
 		})
 	}
@@ -188,7 +188,7 @@ func BenchmarkPublishStructByValue__1000_Subs(b *testing.B) {
 func BenchmarkPublishReference__1_Subs(b *testing.B) {
 	bus := NewBus()
 	count := 0
-	bus.Subscribe(func(i interface{}) {
+	bus.Subscribe(func(msg Message) {
 		count++
 	})
 	b.ResetTimer()
@@ -202,7 +202,7 @@ func BenchmarkPublishReference__1000_Subs(b *testing.B) {
 	bus := NewBus()
 	count := 0
 	for i := 0; i < 1000; i++ {
-		bus.Subscribe(func(i interface{}) {
+		bus.Subscribe(func(msg Message) {
 			count++
 		})
 	}

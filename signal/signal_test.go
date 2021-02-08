@@ -80,3 +80,23 @@ func TestHandlerShouldNotCallAfterUnregister(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestHandlerShouldNotCallAfterExit(t *testing.T) {
+	if runtime.GOOS == "windows" { // tests currently only support posix
+		return
+	}
+	handler := NewHandler()
+	count := 0
+	handler.Register(func(signal os.Signal) {
+		count++
+	}, syscall.SIGUSR1)
+	p, _ := os.FindProcess(os.Getpid())
+	_ = p.Signal(syscall.SIGUSR1)      // should be received
+	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
+	handler.Exit()
+	_ = p.Signal(syscall.SIGUSR1)      // should not be received
+	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
+	if count != 1 {
+		t.Fail()
+	}
+}
