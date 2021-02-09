@@ -30,7 +30,7 @@ onMessage := func(this Connection, msgType int, data []byte) {
     this.Send(msgType, data) // echo the message
 }
 onError := func(this Connection, err error) {
-    fmt.Println("error occurred", err.Error())
+    fmt.Println("defaultmsg occurred", err.Error())
 }
 onClose := func(this Connection, err websocket.CloseError) {
     fmt.Println("connection closed", err.Code, err.Text)

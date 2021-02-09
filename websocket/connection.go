@@ -9,14 +9,13 @@ import (
 
 // Connection represents a connected websocket.
 type Connection interface {
-	// Send message with MessageType and data
+	// Send message
 	Send(msgType int, data []byte) error
-	OnError(h func(this Connection, err error))
-	OnClose(h func(this Connection, err websocket.CloseError))
 	// Access underlying connection
 	Conn() *websocket.Conn
-	// Closes the connection
+	// Shutdown the connection
 	Shutdown()
+	// Address of remote endpoint (e.g. "192.0.2.1:25" or "[2001:db8::1]:80")
 	String() string
 }
 
@@ -25,16 +24,17 @@ type connectionImpl struct {
 	shutdownOnce *sync.Once
 	onMessage    func(this Connection, msgType int, data []byte)
 	onError      func(this Connection, err error)
-	onClose      func(this Connection, err websocket.CloseError)
+	onClose      func(this Connection, code int, text string)
 }
 
-func NewConnection(conn *websocket.Conn, onMessage func(this Connection, msgType int, data []byte)) Connection {
+func NewConnection(conn *websocket.Conn, onMessage func(this Connection, msgType int, data []byte),
+	onClose func(this Connection, code int, text string), onError func(this Connection, err error)) Connection {
 	c := &connectionImpl{
 		conn:         conn,
 		shutdownOnce: &sync.Once{},
 		onMessage:    onMessage,
-		onError:      nil,
-		onClose:      nil,
+		onError:      onError,
+		onClose:      onClose,
 	}
 
 	go c.readWorker()
@@ -50,14 +50,6 @@ func (c *connectionImpl) Send(msgType int, data []byte) error {
 		}
 	}
 	return err
-}
-
-func (c *connectionImpl) OnError(h func(this Connection, err error)) {
-	c.onError = h
-}
-
-func (c *connectionImpl) OnClose(h func(this Connection, err websocket.CloseError)) {
-	c.onClose = h
 }
 
 func (c *connectionImpl) Conn() *websocket.Conn {
@@ -81,7 +73,7 @@ func (c *connectionImpl) String() string {
 func (c *connectionImpl) readWorker() {
 	for {
 		msgType, bytes, err := c.conn.ReadMessage()
-		if err == nil {
+		if err == nil && c.onMessage != nil {
 			c.onMessage(c, msgType, bytes)
 		} else {
 			if closeErr, ok := err.(*websocket.CloseError); ok {
@@ -96,9 +88,8 @@ func (c *connectionImpl) readWorker() {
 
 // tries to gracefully close the connection by sending a close-message
 func (c *connectionImpl) sendCloseMessage() {
-	t := time.Now().Add(1 * time.Second)
 	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
-	err := c.conn.WriteControl(websocket.CloseMessage, closeMsg, t)
+	err := c.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(1*time.Second))
 	if err != nil && c.onError != nil {
 		c.onError(c, err)
 	}
@@ -110,6 +101,6 @@ func (c *connectionImpl) closeConnection(closeErr websocket.CloseError) {
 		c.onError(c, err)
 	}
 	if c.onClose != nil {
-		c.onClose(c, closeErr)
+		c.onClose(c, closeErr.Code, closeErr.Text)
 	}
 }
