@@ -66,10 +66,9 @@ func TestConnectionClientCloses(t *testing.T) {
 	waitForCloseEventOrFail(t, clientSideCloseEvents, 100*time.Millisecond)
 }
 
-// TODO: fix
-func ConcurrentConnections(t *testing.T) {
-	const concurrentConnections = 1000
-	const messagesPerConnection = 1000
+func TestConcurrentConnections(t *testing.T) {
+	const concurrentConnections = 100
+	const messagesPerConnection = 10
 	svrSideConns := make([]Connection, concurrentConnections)
 	clientSideConns := make([]Connection, concurrentConnections)
 	svrSideMsgsReceived := 0
@@ -82,7 +81,7 @@ func ConcurrentConnections(t *testing.T) {
 	established.Add(1)
 
 	// server
-	svrSideMsgStream, svrSideMsgHandler := getMessageStreamWithHandler(echoHandlerWithLimit(messagesPerConnection))
+	svrSideMsgStream, svrSideMsgHandler := getMessageStreamWithHandler(echoHandler)
 	srvSideConns := serverAcceptConnectionsAt(t, t.Name(), svrSideMsgHandler)
 	go func() {
 		for i := 0; i < concurrentConnections; i++ {
@@ -123,17 +122,25 @@ func ConcurrentConnections(t *testing.T) {
 	established.Wait()
 
 	// send message that round-trips messagesPerConnection times per connection
+	s := time.Now()
 	for i := 0; i < concurrentConnections; i++ {
 		if err := svrSideConns[i].Send(websocket.TextMessage, []byte("This is a test!")); err != nil {
 			t.Fail()
 		}
 	}
-
-	time.Sleep(10 * time.Second)
-	fmt.Println(svrSideMsgsReceived)
-	fmt.Println(clientSideMsgsReceived)
 	clientSideDone.Wait()
 	svrSideDone.Wait()
+	d := time.Since(s)
+	t.Logf("\nconcurrent connections:\t\t%d\n"+
+		"round-trips per connection:\t%d\n"+
+		"total messages exchanged:\t%d\n"+
+		"total time:\t\t\t\t\t%s\n"+
+		"avg time per round-trip:\t%s\n"+
+		"avg time per message:\t\t%s", concurrentConnections, messagesPerConnection,
+		2*messagesPerConnection*concurrentConnections, d.String(),
+		time.Duration(d.Nanoseconds()/(messagesPerConnection*concurrentConnections)).String(),
+		time.Duration(d.Nanoseconds()/(2*messagesPerConnection*concurrentConnections)).String())
+
 	if svrSideMsgsReceived != clientSideMsgsReceived {
 		t.Fail()
 	}
@@ -145,9 +152,9 @@ type message struct {
 	data    []byte
 }
 
-func getCloseEventStream() (chan bool, func(websocket.CloseError)) {
+func getCloseEventStream() (chan bool, func(Connection, websocket.CloseError)) {
 	closeEvents := make(chan bool, 10)
-	onClose := func(err websocket.CloseError) {
+	onClose := func(this Connection, err websocket.CloseError) {
 		closeEvents <- true
 	}
 	return closeEvents, onClose
@@ -179,16 +186,6 @@ func waitForConnectionOrFail(t *testing.T, conns chan Connection, timeout time.D
 	return conn
 }
 
-func echoHandlerWithLimit(limit int) func(this Connection, msgType int, data []byte) {
-	i := 0
-	return func(this Connection, msgType int, data []byte) {
-		if i < limit {
-			_ = this.Send(msgType, data)
-			i++
-		}
-	}
-}
-
 func echoHandler(this Connection, msgType int, data []byte) {
 	_ = this.Send(msgType, data)
 }
@@ -216,14 +213,13 @@ func serverAcceptConnectionsAt(t *testing.T, pattern string, onSrvSideMsg func(t
 		time.Sleep(100 * time.Millisecond) // wait for server to come up
 	}
 
-	inConns := make(chan Connection, 1000)
+	inConns := make(chan Connection, 10000)
 	muxer.HandleFunc("/"+pattern, func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			t.Log(err)
 		}
 		conn := NewConnection(c, onSrvSideMsg)
-		time.Sleep(20 * time.Millisecond) // give connection some time to init
 		inConns <- conn
 	})
 	return inConns
@@ -235,6 +231,5 @@ func connectToServerAt(t *testing.T, pattern string, onClientSideMsg func(this C
 		t.Fail()
 	}
 	conn := NewConnection(c, onClientSideMsg)
-	time.Sleep(20 * time.Millisecond) // give connection some time to init
 	return conn
 }

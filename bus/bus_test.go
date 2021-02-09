@@ -28,31 +28,6 @@ func TestGetNamedBusShouldReturnSameReferenceForSameName(t *testing.T) {
 	}
 }
 
-func TestGetNamedBusShouldReturnDifferentReferenceForDifferentName(t *testing.T) {
-	names := []string{"t1", "t2", "t3"}
-	buses := []Bus{nil, nil, nil}
-	for i, name := range names {
-		buses[i] = GetNamedBus(name)
-	}
-
-	// different name should return different reference, same name returns same reference
-	for i, bus1 := range buses {
-		for j, bus2 := range buses {
-			ptr1 := reflect.ValueOf(bus1).Pointer()
-			ptr2 := reflect.ValueOf(bus2).Pointer()
-			if i != j {
-				if ptr1 == ptr2 {
-					t.Fail()
-				}
-			} else {
-				if ptr1 != ptr2 {
-					t.Fail()
-				}
-			}
-		}
-	}
-}
-
 func TestBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 	bus := NewBus()
 	count := 0
@@ -80,26 +55,6 @@ func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T)
 	}
 	time.Sleep(100 * time.Millisecond) // message delivered asynchronously, wait a little
 	bus.Unsubscribe(receiver)
-	for i := 0; i < 100; i++ {
-		bus.Publish(1) // these should not be delivered
-	}
-	time.Sleep(100 * time.Millisecond) // message delivered asynchronously, wait a little
-	if count != 100 {
-		t.Fail()
-	}
-}
-
-func TestBusReceiverShouldNotReceiveAfterBusWasClosed(t *testing.T) {
-	bus := NewBus()
-	count := 0
-	bus.Subscribe(func(msg Message) {
-		count++
-	})
-	for i := 0; i < 100; i++ {
-		bus.Publish(1)
-	}
-	time.Sleep(100 * time.Millisecond) // message delivered asynchronously, wait a little
-	bus.Close()
 	for i := 0; i < 100; i++ {
 		bus.Publish(1) // these should not be delivered
 	}

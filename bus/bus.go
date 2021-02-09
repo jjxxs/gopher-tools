@@ -3,52 +3,53 @@ package bus
 import (
 	"reflect"
 	"sync"
-	"sync/atomic"
+	"time"
 )
 
-// Type of the Message carried by this Bus - change it to a specific type if you want.
+// Type of the Message carried by this Bus - change it to a specific type if necessary.
 type Message = interface{}
 
-// Type of the Receiver that subscribe to this Bus - change it to a specific type if you want.
-type Receiver = func(msg Message)
+// Type of the Subscriber that subscribe to this Bus - change it to a specific type if necessary.
+type Subscriber = func(msg Message)
 
 // MsgQueueSize - Size of the buffer for published messages per subscriber
 var MsgQueueSize = 1000
 
 // A Bus provides an implementation of a loosely-coupled publish-subscriber
-// pattern. Receiver(s) can subscribe to the Bus and are called whenever a
+// pattern. Subscriber(s) can subscribe to the Bus and are called whenever a
 // Message is Publish(ed) on the Bus.
 type Bus interface {
 	// Publish a Message on the Bus. This will pass the Message
-	// to all Receiver(s) currently subscribed to this Bus.
+	// to all Subscriber(s) currently subscribed to this Bus.
+	// Publish will block if the message-queue is full. Otherwise
+	// it returns immediately.
 	Publish(msg Message)
 
-	// Subscribe to the Bus. The given Receiver will be called
+	// Like Publish but will only block for the given duration.
+	// Returns true if the message was written to the bus in time,
+	// false if not.
+	PublishTimeout(msg Message, timeout time.Duration) bool
+
+	// Subscribe to the Bus. The given Subscriber will be called
 	// whenever a message is Publish(ed) on the Bus.
-	Subscribe(rcv Receiver)
+	Subscribe(sub Subscriber)
 
 	// Unsubscribe from the Bus. No further Message(s) will be
 	// received.
-	Unsubscribe(rcv Receiver)
-
-	// Close the Bus. This effectively Unsubscribe(s) all Receiver(s)
-	// and no further Message(s) can be Publish(ed).
-	Close()
+	Unsubscribe(sub Subscriber)
 }
 
 type busImpl struct {
-	rwMtx  *sync.RWMutex
-	rcvs   []Receiver
-	msgs   chan Message
-	closed *int32
+	rwMtx *sync.RWMutex
+	subs  []Subscriber
+	msgs  chan Message
 }
 
 func NewBus() Bus {
 	bus := &busImpl{
-		rwMtx:  &sync.RWMutex{},
-		rcvs:   []Receiver{},
-		msgs:   make(chan Message, MsgQueueSize),
-		closed: new(int32),
+		rwMtx: &sync.RWMutex{},
+		subs:  []Subscriber{},
+		msgs:  make(chan Message, MsgQueueSize),
 	}
 
 	go bus.worker()
@@ -59,7 +60,7 @@ func NewBus() Bus {
 func (b *busImpl) worker() {
 	for msg := range b.msgs {
 		b.rwMtx.RLock()
-		for _, rcv := range b.rcvs {
+		for _, rcv := range b.subs {
 			rcv(msg)
 		}
 		b.rwMtx.RUnlock()
@@ -67,36 +68,35 @@ func (b *busImpl) worker() {
 }
 
 func (b *busImpl) Publish(msg Message) {
-	if atomic.CompareAndSwapInt32(b.closed, 0, 0) {
-		b.msgs <- msg
+	b.msgs <- msg
+}
+
+func (b *busImpl) PublishTimeout(msg Message, timeout time.Duration) bool {
+	select {
+	case b.msgs <- msg:
+		return true
+	case <-time.Tick(timeout):
 	}
+	return false
 }
 
-func (b *busImpl) Subscribe(rcv Receiver) {
+func (b *busImpl) Subscribe(sub Subscriber) {
 	b.rwMtx.Lock()
 	defer b.rwMtx.Unlock()
-	b.rcvs = append(b.rcvs, rcv)
+	b.subs = append(b.subs, sub)
 }
 
-func (b *busImpl) Unsubscribe(rcv Receiver) {
-	var rcvs []Receiver
-	rcvPtr1 := reflect.ValueOf(rcv).Pointer()
+func (b *busImpl) Unsubscribe(sub Subscriber) {
+	var rcvs []Subscriber
+	rcvPtr1 := reflect.ValueOf(sub).Pointer()
 
 	b.rwMtx.Lock()
 	defer b.rwMtx.Unlock()
-	for _, rcv2 := range b.rcvs {
+	for _, rcv2 := range b.subs {
 		rcvPtr2 := reflect.ValueOf(rcv2).Pointer()
 		if rcvPtr1 != rcvPtr2 {
 			rcvs = append(rcvs, rcv2)
 		}
 	}
-	b.rcvs = rcvs
-}
-
-func (b *busImpl) Close() {
-	if atomic.CompareAndSwapInt32(b.closed, 0, 1) {
-		b.rwMtx.Lock()
-		defer b.rwMtx.Unlock()
-		close(b.msgs)
-	}
+	b.subs = rcvs
 }
