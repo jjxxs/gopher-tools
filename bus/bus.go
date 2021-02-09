@@ -72,10 +72,12 @@ func (b *busImpl) Publish(msg Message) {
 }
 
 func (b *busImpl) PublishTimeout(msg Message, timeout time.Duration) bool {
+	t := time.NewTicker(timeout)
+	defer t.Stop()
 	select {
 	case b.msgs <- msg:
 		return true
-	case <-time.Tick(timeout):
+	case <-t.C:
 	}
 	return false
 }

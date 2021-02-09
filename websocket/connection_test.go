@@ -92,7 +92,7 @@ func TestConcurrentConnections(t *testing.T) {
 
 	// server-message counter
 	go func() {
-		for _ = range svrSideMsgStream {
+		for range svrSideMsgStream {
 			svrSideMsgsReceived++
 			if svrSideMsgsReceived == concurrentConnections*messagesPerConnection {
 				svrSideDone.Done()
@@ -109,7 +109,7 @@ func TestConcurrentConnections(t *testing.T) {
 
 	// client-message counter
 	go func() {
-		for _ = range clientSideMsgStream {
+		for range clientSideMsgStream {
 			clientSideMsgsReceived++
 			if clientSideMsgsReceived == concurrentConnections*messagesPerConnection {
 				clientSideDone.Done()
@@ -162,8 +162,8 @@ func getCloseEventStream() (chan bool, func(Connection, websocket.CloseError)) {
 
 func waitForCloseEventOrFail(t *testing.T, closeEvents chan bool, timeout time.Duration) {
 	select {
-	case _ = <-closeEvents:
-	case _ = <-time.After(timeout):
+	case <-closeEvents:
+	case <-time.After(timeout):
 		t.Fatal()
 	}
 }
@@ -171,7 +171,7 @@ func waitForCloseEventOrFail(t *testing.T, closeEvents chan bool, timeout time.D
 func waitForMessageOrFail(t *testing.T, msgs chan message, timeout time.Duration) (msg message) {
 	select {
 	case msg = <-msgs:
-	case _ = <-time.After(timeout):
+	case <-time.After(timeout):
 		t.Fatal()
 	}
 	return msg
@@ -180,7 +180,7 @@ func waitForMessageOrFail(t *testing.T, msgs chan message, timeout time.Duration
 func waitForConnectionOrFail(t *testing.T, conns chan Connection, timeout time.Duration) (conn Connection) {
 	select {
 	case conn = <-conns:
-	case _ = <-time.After(timeout):
+	case <-time.After(timeout):
 		t.Fatal()
 	}
 	return conn
