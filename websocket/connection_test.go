@@ -15,17 +15,17 @@ const port = 9042
 var (
 	server   *http.Server
 	muxer    = &http.ServeMux{}
-	upgrader = DemilitarizedUpgrader(100, false)
+	upgrader = GetDemilitarizedUpgrader(100, false)
 )
 
 func TestConnectionSendReceive(t *testing.T) {
 	// server
 	svrSideMsgStream, svrSideMsgHandler := getMessageStreamWithHandler(nil)
-	svrSideConns := serverAcceptConnectionsAt(t, t.Name(), svrSideMsgHandler)
+	svrSideConns := serverAcceptConnectAt(t, t.Name(), svrSideMsgHandler, nil, nil)
 
 	// client that echoes every message it receives
 	_, clientSideMsgHandler := getMessageStreamWithHandler(echoHandler)
-	_ = connectToServerAt(t, t.Name(), clientSideMsgHandler)
+	_ = clientConnectToServerAt(t, t.Name(), clientSideMsgHandler, nil, nil)
 
 	// wait for client to connect
 	svrSideConn := waitForConnectionOrFail(t, svrSideConns, 100*time.Millisecond)
@@ -40,30 +40,22 @@ func TestConnectionSendReceive(t *testing.T) {
 
 func TestConnectionClientCloses(t *testing.T) {
 	// server
-	_, svrSideMsgHandler := getMessageStreamWithHandler(nil)
-	svrSideConns := serverAcceptConnectionsAt(t, t.Name(), svrSideMsgHandler)
+	srvCloseStream, srvCloseHandler := getCloseEventStream()
+	svrSideConns := serverAcceptConnectAt(t, t.Name(), nil, srvCloseHandler, nil)
 
 	// client
-	_, clientSideMsgHandler := getMessageStreamWithHandler(nil)
-	clientSideConn := connectToServerAt(t, t.Name(), clientSideMsgHandler)
+	clientCloseStream, clientCloseHandler := getCloseEventStream()
+	clientSideConn := clientConnectToServerAt(t, t.Name(), nil, clientCloseHandler, nil)
 
 	// wait for client to connect
-	svrSideConn := waitForConnectionOrFail(t, svrSideConns, 100*time.Millisecond)
+	_ = waitForConnectionOrFail(t, svrSideConns, 100*time.Millisecond)
 
-	// server close event
-	srvSideCloseEvents, srvSideCloseEventHandler := getCloseEventStream()
-	svrSideConn.OnClose(srvSideCloseEventHandler)
-
-	// client close events
-	clientSideCloseEvents, clientSideCloseEventHandler := getCloseEventStream()
-	clientSideConn.OnClose(clientSideCloseEventHandler)
-
-	// client closes the connection
+	// client closes connection
 	clientSideConn.Shutdown()
 
 	// both client and server-side should fire the close-event
-	waitForCloseEventOrFail(t, srvSideCloseEvents, 100*time.Millisecond)
-	waitForCloseEventOrFail(t, clientSideCloseEvents, 100*time.Millisecond)
+	waitForCloseEventOrFail(t, srvCloseStream, 100*time.Millisecond, 1000, "")
+	waitForCloseEventOrFail(t, clientCloseStream, 100*time.Millisecond, 1000, "")
 }
 
 func TestConcurrentConnections(t *testing.T) {
@@ -82,7 +74,7 @@ func TestConcurrentConnections(t *testing.T) {
 
 	// server
 	svrSideMsgStream, svrSideMsgHandler := getMessageStreamWithHandler(echoHandler)
-	srvSideConns := serverAcceptConnectionsAt(t, t.Name(), svrSideMsgHandler)
+	srvSideConns := serverAcceptConnectAt(t, t.Name(), svrSideMsgHandler, nil, nil)
 	go func() {
 		for i := 0; i < concurrentConnections; i++ {
 			svrSideConns[i] = <-srvSideConns
@@ -104,7 +96,7 @@ func TestConcurrentConnections(t *testing.T) {
 	// client
 	clientSideMsgStream, clientSideMsgHandler := getMessageStreamWithHandler(echoHandler)
 	for i := 0; i < concurrentConnections; i++ {
-		clientSideConns[i] = connectToServerAt(t, t.Name(), clientSideMsgHandler)
+		clientSideConns[i] = clientConnectToServerAt(t, t.Name(), clientSideMsgHandler, nil, nil)
 	}
 
 	// client-message counter
@@ -152,17 +144,25 @@ type message struct {
 	data    []byte
 }
 
-func getCloseEventStream() (chan bool, func(Connection, websocket.CloseError)) {
-	closeEvents := make(chan bool, 10)
-	onClose := func(this Connection, err websocket.CloseError) {
-		closeEvents <- true
+type closeEvent struct {
+	code int
+	text string
+}
+
+func getCloseEventStream() (chan closeEvent, func(Connection, int, string)) {
+	closeEvents := make(chan closeEvent, 10)
+	onClose := func(this Connection, code int, text string) {
+		closeEvents <- closeEvent{code, text}
 	}
 	return closeEvents, onClose
 }
 
-func waitForCloseEventOrFail(t *testing.T, closeEvents chan bool, timeout time.Duration) {
+func waitForCloseEventOrFail(t *testing.T, closeEvents chan closeEvent, timeout time.Duration, code int, text string) {
 	select {
-	case <-closeEvents:
+	case ce := <-closeEvents:
+		if ce.code != code || ce.text != text {
+			t.Fail()
+		}
 	case <-time.After(timeout):
 		t.Fatal()
 	}
@@ -201,7 +201,8 @@ func getMessageStreamWithHandler(handler func(Connection, int, []byte)) (chan me
 	return msgs, onMsg
 }
 
-func serverAcceptConnectionsAt(t *testing.T, pattern string, onSrvSideMsg func(this Connection, msgType int, data []byte)) chan Connection {
+func serverAcceptConnectAt(t *testing.T, pattern string, onMessage func(this Connection, msgType int, data []byte),
+	onClose func(this Connection, code int, text string), onError func(this Connection, err error)) chan Connection {
 	if server == nil { // the first time this is called we need to start the server
 		server = &http.Server{Addr: fmt.Sprintf(":%d", port)}
 		go func() {
@@ -219,17 +220,18 @@ func serverAcceptConnectionsAt(t *testing.T, pattern string, onSrvSideMsg func(t
 		if err != nil {
 			t.Log(err)
 		}
-		conn := NewConnection(c, onSrvSideMsg)
+		conn := NewConnection(c, onMessage, onClose, onError)
 		inConns <- conn
 	})
 	return inConns
 }
 
-func connectToServerAt(t *testing.T, pattern string, onClientSideMsg func(this Connection, msgType int, data []byte)) Connection {
+func clientConnectToServerAt(t *testing.T, pattern string, onMessage func(this Connection, msgType int, data []byte),
+	onClose func(this Connection, code int, text string), onError func(this Connection, err error)) Connection {
 	c, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://localhost:%d/%s", port, pattern), nil)
 	if err != nil {
 		t.Fail()
 	}
-	conn := NewConnection(c, onClientSideMsg)
+	conn := NewConnection(c, onMessage, onClose, onError)
 	return conn
 }
