@@ -21,3 +21,12 @@ func Handle(handler func(sig os.Signal), signals ...os.Signal) {
 
 	instance.Register(handler, signals...)
 }
+
+// HandleOneShot - Handles a set of signals with a specified function.
+// The function is exactly once if any of the given signals are received.
+func HandleOneShot(handler func(sig os.Signal), signals ...os.Signal) {
+	once.Do(func() {
+		instance = NewHandler()
+	})
+	instance.RegisterOneShot(handler, signals...)
+}
