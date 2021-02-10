@@ -22,6 +22,7 @@ type Connection interface {
 type connectionImpl struct {
 	conn         *websocket.Conn
 	shutdownOnce *sync.Once
+	sendMtx      *sync.Mutex
 	onMessage    func(this Connection, msgType int, data []byte)
 	onError      func(this Connection, err error)
 	onClose      func(this Connection, code int, text string)
@@ -32,6 +33,7 @@ func NewConnection(conn *websocket.Conn, onMessage func(this Connection, msgType
 	c := &connectionImpl{
 		conn:         conn,
 		shutdownOnce: &sync.Once{},
+		sendMtx:      &sync.Mutex{},
 		onMessage:    onMessage,
 		onError:      onError,
 		onClose:      onClose,
@@ -43,12 +45,9 @@ func NewConnection(conn *websocket.Conn, onMessage func(this Connection, msgType
 }
 
 func (c *connectionImpl) Send(msgType int, data []byte) error {
-	var err error
-	if err = c.conn.WriteMessage(msgType, data); err != nil {
-		if c.onError != nil {
-			c.onError(c, err)
-		}
-	}
+	c.sendMtx.Lock()
+	err := c.conn.WriteMessage(msgType, data)
+	c.sendMtx.Unlock()
 	return err
 }
 

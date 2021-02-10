@@ -15,6 +15,10 @@ type Handler interface {
 	// provided os.Signal(s) is received.
 	Register(cb func(sig os.Signal), signals ...os.Signal)
 
+	// RegisterOneShot registers a callback that is called only
+	// once and then removed from the Handler.
+	RegisterOneShot(cb func(sig os.Signal), signals ...os.Signal)
+
 	// Unregister a previously registered callback.
 	Unregister(cb func(sig os.Signal))
 
@@ -50,6 +54,18 @@ func (h *handlerImpl) Register(cb func(sig os.Signal), signals ...os.Signal) {
 		}
 		h.cbs[sig] = append(h.cbs[sig], cb)
 	}
+}
+
+func (h *handlerImpl) RegisterOneShot(cb func(sig os.Signal), signals ...os.Signal) {
+	oneShot := &sync.Once{}
+	var oneShotFunc func(sig os.Signal)
+	oneShotFunc = func(sig os.Signal) {
+		oneShot.Do(func() {
+			cb(sig)
+			h.Unregister(oneShotFunc)
+		})
+	}
+	h.Register(oneShotFunc, signals...)
 }
 
 func (h *handlerImpl) Unregister(cb func(os.Signal)) {

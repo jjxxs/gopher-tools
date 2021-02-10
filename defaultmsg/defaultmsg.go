@@ -14,4 +14,16 @@ const (
 	// Requests
 	InvalidRequestType  = "invalid request type"
 	InvalidResponseType = "invalid response type"
+
+	// Websocket
+	WebsocketFailedToUpgradeConnection = "failed to upgrade to websocket-connection"
+
+	// Service
+	ServiceStarted = "started service"
+	ServiceStopped = "stopped service"
+	ServiceFailure = "failed service"
+
+	// Misc
+	EnvironmentVariableNotSet  = "environment variable not set"
+	EnvironmentVariableInvalid = "environment variable has invalid value"
 )
