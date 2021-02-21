@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-func TestRepeatedTaskStart(t *testing.T) {
+func TestRepeat(t *testing.T) {
 	wg := sync.WaitGroup{}
 	count := 0
 	wg.Add(10)
-	rt := NewRepeatedTask(10*time.Millisecond, func() {
+	rt := NewRepeat(func() {
 		count++
 		if count <= 10 {
 			wg.Done()
 		}
-	})
+	}, 10*time.Millisecond)
 	tm := time.Now()
 	rt.Start()
 	wg.Wait()
@@ -36,11 +36,11 @@ func TestRepeatedTaskStart(t *testing.T) {
 
 func TestRepeatedTaskStop(t *testing.T) {
 	count := 0
-	var rt RepeatedTask
-	rt = NewRepeatedTask(50*time.Millisecond, func() {
+	var rt *repeat
+	rt = NewRepeat(func() {
 		count++
 		rt.Stop()
-	})
+	}, 50*time.Millisecond)
 	rt.Start()
 	time.Sleep(200 * time.Millisecond)
 	if count != 1 {
