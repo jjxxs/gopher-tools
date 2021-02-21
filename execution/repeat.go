@@ -13,7 +13,7 @@ const (
 	exited
 )
 
-type repeat struct {
+type Repeat struct {
 	mtx   *sync.Mutex
 	state state
 	trans chan state
@@ -21,8 +21,8 @@ type repeat struct {
 	fn    func()
 }
 
-func NewRepeat(fn func(), duration time.Duration) (r *repeat) {
-	r = &repeat{
+func NewRepeat(fn func(), duration time.Duration) (r *Repeat) {
+	r = &Repeat{
 		mtx:   &sync.Mutex{},
 		fn:    fn,
 		state: ready,
@@ -33,7 +33,7 @@ func NewRepeat(fn func(), duration time.Duration) (r *repeat) {
 	return
 }
 
-func (r *repeat) Start() (this *repeat) {
+func (r *Repeat) Start() (this *Repeat) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	if r.state == ready {
@@ -42,7 +42,7 @@ func (r *repeat) Start() (this *repeat) {
 	return r
 }
 
-func (r *repeat) Stop() {
+func (r *Repeat) Stop() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	if r.state == running {
@@ -50,13 +50,13 @@ func (r *repeat) Stop() {
 	}
 }
 
-func (r *repeat) Exit() {
+func (r *Repeat) Exit() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	r.trans <- exited
 }
 
-func (r *repeat) worker() {
+func (r *Repeat) worker() {
 	for r.state != exited {
 		select {
 		case s := <-r.trans:

@@ -36,7 +36,7 @@ func TestRepeat(t *testing.T) {
 
 func TestRepeatedTaskStop(t *testing.T) {
 	count := 0
-	var rt *repeat
+	var rt *Repeat
 	rt = NewRepeat(func() {
 		count++
 		rt.Stop()
