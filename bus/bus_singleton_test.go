@@ -29,3 +29,18 @@ func TestGetNamedBusShouldReturnSingletonForName(t *testing.T) {
 		}
 	}
 }
+
+func TestGetBusShouldReturnSingleton(t *testing.T) {
+	buses := []Bus{nil, nil, nil}
+	for i := 0; i < 3; i++ {
+		buses[i] = GetBus()
+	}
+
+	if buses[0] == nil {
+		t.Fail()
+	} else if buses[0] != buses[1] {
+		t.Fail()
+	} else if buses[1] != buses[2] {
+		t.Fail()
+	}
+}
