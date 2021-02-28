@@ -17,3 +17,18 @@ func GetNamedBus(name string) Bus {
 
 	return bus.(Bus)
 }
+
+var (
+	once     = &sync.Once{}
+	bus  Bus = nil
+)
+
+// GetBus - Provides thread-safe access to a Bus singleton which is
+// initialized the first time GetBus is called. Repeated calls will
+// return the same instance.
+func GetBus() Bus {
+	once.Do(func() {
+		bus = NewBus()
+	})
+	return bus
+}
