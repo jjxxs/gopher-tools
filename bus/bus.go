@@ -1,104 +1,41 @@
 package bus
 
-import (
-	"reflect"
-	"sync"
-	"time"
-)
+import "time"
 
 // Type of the Message carried by this Bus - change it to a specific type if necessary.
 type Message = interface{}
 
-// Type of the Subscriber that subscribe to this Bus - change it to a specific type if necessary.
-type Subscriber = func(msg Message)
-
-// MsgQueueSize - Size of the buffer for published messages per subscriber
-var MsgQueueSize = 1000
+// A Subscriber can receive/handle messages published on the Bus.
+type Subscriber interface {
+	HandleMessage(msg Message)
+}
 
 // A Bus provides an implementation of a loosely-coupled publish-subscriber
 // pattern. Subscriber(s) can subscribe to the Bus and are called whenever a
 // Message is Publish(ed) on the Bus.
 type Bus interface {
-	// Publish a Message on the Bus. This will pass the Message
-	// to all Subscriber(s) currently subscribed to this Bus.
-	// Publish will block if the message-queue is full. Otherwise
-	// it returns immediately.
+	// Publish a Message on the Bus. The Message will be forwarded to
+	// all Subscriber(s).
 	Publish(msg Message)
 
-	// Like Publish but will only block for the given duration.
-	// Returns true if the message was written to the bus in time,
-	// false if not.
-	PublishTimeout(msg Message, timeout time.Duration) bool
-
-	// Subscribe to the Bus. The given Subscriber will be called
+	// Subscribe to the Bus. The given Subscriber will be notified
 	// whenever a message is Publish(ed) on the Bus.
 	Subscribe(sub Subscriber)
 
 	// Unsubscribe from the Bus. No further Message(s) will be
-	// received.
+	// received by given Subscriber.
 	Unsubscribe(sub Subscriber)
 }
 
-type busImpl struct {
-	rwMtx *sync.RWMutex
-	subs  []Subscriber
-	msgs  chan Message
-}
+// A WorkerBus uses a queue to buffer message that are passed
+// via Bus.Publish. Publishing on a WorkerBus will block, if the
+// queue is full or return immediately. A WorkerBus employs go-
+// routines to deliver messages to Subscriber(s).
+type WorkerBus interface {
+	Bus
 
-func NewBus() Bus {
-	bus := &busImpl{
-		rwMtx: &sync.RWMutex{},
-		subs:  []Subscriber{},
-		msgs:  make(chan Message, MsgQueueSize),
-	}
-
-	go bus.worker()
-
-	return bus
-}
-
-func (b *busImpl) worker() {
-	for msg := range b.msgs {
-		b.rwMtx.RLock()
-		for _, rcv := range b.subs {
-			rcv(msg)
-		}
-		b.rwMtx.RUnlock()
-	}
-}
-
-func (b *busImpl) Publish(msg Message) {
-	b.msgs <- msg
-}
-
-func (b *busImpl) PublishTimeout(msg Message, timeout time.Duration) bool {
-	t := time.NewTicker(timeout)
-	defer t.Stop()
-	select {
-	case b.msgs <- msg:
-		return true
-	case <-t.C:
-	}
-	return false
-}
-
-func (b *busImpl) Subscribe(sub Subscriber) {
-	b.rwMtx.Lock()
-	defer b.rwMtx.Unlock()
-	b.subs = append(b.subs, sub)
-}
-
-func (b *busImpl) Unsubscribe(sub Subscriber) {
-	var rcvs []Subscriber
-	rcvPtr1 := reflect.ValueOf(sub).Pointer()
-
-	b.rwMtx.Lock()
-	defer b.rwMtx.Unlock()
-	for _, rcv2 := range b.subs {
-		rcvPtr2 := reflect.ValueOf(rcv2).Pointer()
-		if rcvPtr1 != rcvPtr2 {
-			rcvs = append(rcvs, rcv2)
-		}
-	}
-	b.subs = rcvs
+	// Publishes a message on the Bus. If the queue is full, waits
+	// a maximum amount of time before cancelling the operation.
+	// Returns true of the message was enqueued, false if not.
+	PublishTimeout(msg Message, timeout time.Duration) bool
 }
