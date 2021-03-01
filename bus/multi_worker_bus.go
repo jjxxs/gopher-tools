@@ -123,10 +123,6 @@ type subWithWorker struct {
 	q   chan Message
 }
 
-func (s *subWithWorker) onMessage(msg Message) {
-	s.q <- msg
-}
-
 func (s *subWithWorker) work() {
 	for msg := range s.q {
 		s.sub.HandleMessage(msg)
