@@ -1,91 +1,87 @@
 package bus
 
 import (
-	"reflect"
 	"sync"
 )
 
 // Holds 'named' Bus-singletons
-var (
-	simpleBussesMtx = &sync.Mutex{}
-	simpleBusses    = map[string]Bus{}
-)
+var busses = &sync.Map{}
 
-// GetNamedSimpleBus - Provides thread-safe access to a Bus with a
-// specified name. Repeated calls with the same name always return
-// the same Bus.
-func GetNamedSimpleBus(name string) Bus {
-	simpleBussesMtx.Lock()
-	defer simpleBussesMtx.Unlock()
-	if b, ok := simpleBusses[name]; ok {
-		return b
+// GetNamedBus - Provides thread-safe access to a Bus with a specified
+// name. Repeated calls with the same name always return the same Bus.
+func GetNamedBus(name string) Bus {
+	if b, ok := busses.Load(name); ok {
+		return b.(Bus)
 	}
-	b := NewSimpleBus()
-	simpleBusses[name] = b
+	b := NewBus()
+	busses.Store(name, b)
 	return b
 }
 
 var (
-	simpleBusOnce     = &sync.Once{}
-	simpleBus     Bus = nil
+	busOnce     = &sync.Once{}
+	bus     Bus = nil
 )
 
-// GetSimpleBus - Provides thread-safe access to a Bus
-// singleton which is initialized the first time GetSimpleBus
-// is called. Repeated calls will return the same instance.
-func GetSimpleBus() Bus {
-	simpleBusOnce.Do(func() {
-		simpleBus = NewSimpleBus()
+// GetBus - Provides thread-safe access to a Bus singleton
+// which is initialized the first time GetBus is called.
+// Repeated calls will return the same instance.
+func GetBus() Bus {
+	busOnce.Do(func() {
+		bus = NewBus()
 	})
-	return simpleBus
+	return bus
 }
 
-type simpleBusImpl struct {
+type busImpl struct {
 	subMtx *sync.RWMutex
-	subs   []Subscriber
+	subs   []*subWithId
+	seq    int64
 }
 
-// Creates a WorkerBus that uses a single go-routine to dispatch
-// messages to Subscriber(s).
-func NewSimpleBus() Bus {
-	b := &simpleBusImpl{
+// Creates a simple Bus. No go-routines are employed by this Bus.
+// Callers of Publish will directly invoke on all Subscribers.
+func NewBus() Bus {
+	b := &busImpl{
 		subMtx: &sync.RWMutex{},
-		subs:   []Subscriber{},
+		subs:   []*subWithId{},
+		seq:    0,
 	}
 	return b
 }
 
-func (b *simpleBusImpl) Publish(msg Message) {
+func (b *busImpl) Publish(msg Message) {
 	b.subMtx.RLock()
 	defer b.subMtx.RUnlock()
 	for _, sub := range b.subs {
-		sub.HandleMessage(msg)
+		sub.sub(msg)
 	}
 }
 
-func (b *simpleBusImpl) Subscribe(sub Subscriber) {
-	s1Ptr := reflect.ValueOf(sub).Pointer()
+func (b *busImpl) Subscribe(sub Subscriber) (unsubscribe func()) {
 	b.subMtx.Lock()
 	defer b.subMtx.Unlock()
-	for _, s2 := range b.subs {
-		s2Ptr := reflect.ValueOf(s2).Pointer()
-		if s1Ptr == s2Ptr {
-			return // no duplicate subscribers
-		}
-	}
-	b.subs = append(b.subs, sub)
+	b.seq++
+	s := &subWithId{id: b.seq, sub: sub}
+	b.subs = append(b.subs, s)
+	return b.unsubscribeId(b.seq)
 }
 
-func (b *simpleBusImpl) Unsubscribe(sub Subscriber) {
-	s1Ptr := reflect.ValueOf(sub).Pointer()
-	var subs []Subscriber
-	b.subMtx.Lock()
-	defer b.subMtx.Unlock()
-	for _, s2 := range b.subs {
-		s2Ptr := reflect.ValueOf(s2).Pointer()
-		if s1Ptr != s2Ptr {
-			subs = append(subs, s2)
+func (b *busImpl) unsubscribeId(id int64) (unsubscribe func()) {
+	return func() {
+		b.subMtx.Lock()
+		defer b.subMtx.Unlock()
+		var subs []*subWithId
+		for _, sub := range b.subs {
+			if sub.id != id {
+				subs = append(subs, sub)
+			}
 		}
+		b.subs = subs
 	}
-	b.subs = subs
+}
+
+type subWithId struct {
+	id  int64
+	sub Subscriber
 }

@@ -12,16 +12,16 @@ import (
  */
 func TestGetNamedMultiWorkerBus(t *testing.T) {
 	names := []string{"t1", "t2", "t3"}
-	buses := []Bus{nil, nil, nil}
+	bs := []Bus{nil, nil, nil}
 	for i, name := range names {
-		buses[i] = GetNamedMultiWorkerBus(name)
+		bs[i] = GetNamedWorkerBus(name)
 	}
 
 	// same name should always return same reference
 	for i, name := range names {
-		bus := GetNamedMultiWorkerBus(name)
-		ptr1 := reflect.ValueOf(bus).Pointer()
-		ptr2 := reflect.ValueOf(buses[i]).Pointer()
+		b := GetNamedWorkerBus(name)
+		ptr1 := reflect.ValueOf(b).Pointer()
+		ptr2 := reflect.ValueOf(bs[i]).Pointer()
 		if ptr1 != ptr2 {
 			t.Fail()
 		}
@@ -29,34 +29,35 @@ func TestGetNamedMultiWorkerBus(t *testing.T) {
 }
 
 func TestGetMultiWorkerBusShouldReturnSingleton(t *testing.T) {
-	buses := []Bus{nil, nil, nil}
+	bs := []Bus{nil, nil, nil}
 	for i := 0; i < 3; i++ {
-		buses[i] = GetMultiWorkerBus()
+		bs[i] = GetWorkerBus()
 	}
 
-	if buses[0] == nil {
+	if bs[0] == nil {
 		t.Fail()
-	} else if buses[0] != buses[1] {
+	} else if bs[0] != bs[1] {
 		t.Fail()
-	} else if buses[1] != buses[2] {
+	} else if bs[1] != bs[2] {
 		t.Fail()
 	}
 }
 
-type multiWorkerTestSubscriber struct {
+type workerTestSub struct {
 	c chan struct{}
 }
 
-func (s *multiWorkerTestSubscriber) HandleMessage(_ Message) {
+func (s *workerTestSub) HandleMessage(_ Message) {
 	s.c <- struct{}{}
 }
 
 func TestMultiWorkerBusReceiverShouldReceivePublishedMessages(t *testing.T) {
-	bus := NewMultiWorkerBus()
+	b := NewWorkerBus(100)
 	c := make(chan struct{}, 100)
-	bus.Subscribe(&multiWorkerTestSubscriber{c})
+	s := &workerTestSub{c}
+	b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
-		bus.Publish(i)
+		b.Publish(i)
 	}
 	timer := time.NewTimer(100 * time.Millisecond)
 	for count := 0; count < 100; {
@@ -70,12 +71,12 @@ func TestMultiWorkerBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 }
 
 func TestMultiWorkerBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T) {
-	bus := NewMultiWorkerBus()
+	b := NewWorkerBus(100)
 	c := make(chan struct{}, 100)
-	s := &multiWorkerTestSubscriber{c}
-	bus.Subscribe(s)
+	s := &workerTestSub{c}
+	unsubscribe := b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
-		bus.Publish(i)
+		b.Publish(i)
 	}
 	timer := time.NewTimer(100 * time.Millisecond)
 	for count := 0; count < 100; {
@@ -86,9 +87,9 @@ func TestMultiWorkerBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t 
 			count++
 		}
 	}
-	bus.Unsubscribe(s)
+	unsubscribe()
 	for i := 0; i < 100; i++ {
-		bus.Publish(i) // these should not be delivered
+		b.Publish(i) // these should not be delivered
 	}
 	select {
 	case <-time.After(100 * time.Millisecond):
@@ -102,9 +103,10 @@ func TestMultiWorkerBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t 
  * Benchmarks
  */
 func BenchmarkMultiWorkerBusPublishPrimitive__1_Subs(b *testing.B) {
-	bus := NewMultiWorkerBus()
+	bu := NewWorkerBus(b.N)
 	c := make(chan struct{}, b.N)
-	bus.Subscribe(&multiWorkerTestSubscriber{c})
+	s := &workerTestSub{c}
+	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -116,16 +118,17 @@ func BenchmarkMultiWorkerBusPublishPrimitive__1_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(i)
+		bu.Publish(i)
 	}
 	wg.Wait()
 }
 
 func BenchmarkMultiWorkerBusPublishPrimitive__1000_Subs(b *testing.B) {
-	bus := NewMultiWorkerBus()
+	bu := NewWorkerBus(b.N)
 	c := make(chan struct{}, b.N)
 	for i := 0; i < 1000; i++ {
-		bus.Subscribe(&multiWorkerTestSubscriber{c})
+		s := &workerTestSub{c}
+		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -138,7 +141,7 @@ func BenchmarkMultiWorkerBusPublishPrimitive__1000_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(i)
+		bu.Publish(i)
 	}
 	wg.Wait()
 }
@@ -157,9 +160,10 @@ var multiWorkerBenchObj = struct {
 }
 
 func BenchmarkMultiWorkerBusPublishStructByValue__1_Subs(b *testing.B) {
-	bus := NewMultiWorkerBus()
+	bu := NewWorkerBus(b.N)
 	c := make(chan struct{}, b.N)
-	bus.Subscribe(&multiWorkerTestSubscriber{c})
+	s := &workerTestSub{c}
+	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -171,16 +175,17 @@ func BenchmarkMultiWorkerBusPublishStructByValue__1_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(multiWorkerBenchObj)
+		bu.Publish(multiWorkerBenchObj)
 	}
 	wg.Wait()
 }
 
 func BenchmarkMultiWorkerBusPublishStructByValue__1000_Subs(b *testing.B) {
-	bus := NewMultiWorkerBus()
+	bu := NewWorkerBus(b.N)
 	c := make(chan struct{}, b.N)
 	for i := 0; i < 1000; i++ {
-		bus.Subscribe(&multiWorkerTestSubscriber{c})
+		s := &workerTestSub{c}
+		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -193,15 +198,16 @@ func BenchmarkMultiWorkerBusPublishStructByValue__1000_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(multiWorkerBenchObj)
+		bu.Publish(multiWorkerBenchObj)
 	}
 	wg.Wait()
 }
 
 func BenchmarkMultiWorkerBusPublishReference__1_Subs(b *testing.B) {
-	bus := NewMultiWorkerBus()
+	bu := NewWorkerBus(b.N)
 	c := make(chan struct{}, b.N)
-	bus.Subscribe(&multiWorkerTestSubscriber{c})
+	s := &workerTestSub{c}
+	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -213,16 +219,17 @@ func BenchmarkMultiWorkerBusPublishReference__1_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(&multiWorkerBenchObj)
+		bu.Publish(&multiWorkerBenchObj)
 	}
 	wg.Wait()
 }
 
 func BenchmarkMultiWorkerBusPublishReference__1000_Subs(b *testing.B) {
-	bus := NewMultiWorkerBus()
+	bu := NewWorkerBus(b.N)
 	c := make(chan struct{}, b.N*1000)
 	for i := 0; i < 1000; i++ {
-		bus.Subscribe(&multiWorkerTestSubscriber{c})
+		s := &workerTestSub{c}
+		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -235,7 +242,7 @@ func BenchmarkMultiWorkerBusPublishReference__1000_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(&multiWorkerBenchObj)
+		bu.Publish(&multiWorkerBenchObj)
 	}
 	wg.Wait()
 }

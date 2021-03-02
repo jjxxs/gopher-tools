@@ -1,14 +1,14 @@
 package bus
 
-import "time"
+import (
+	"time"
+)
 
 // Type of the Message carried by this Bus - change it to a specific type if necessary.
 type Message = interface{}
 
-// A Subscriber can receive/handle messages published on the Bus.
-type Subscriber interface {
-	HandleMessage(msg Message)
-}
+// A Subscriber is called with messages that are published on the Bus.
+type Subscriber func(msg Message)
 
 // A Bus provides an implementation of a loosely-coupled publish-subscriber
 // pattern. Subscriber(s) can subscribe to the Bus and are called whenever a
@@ -19,18 +19,16 @@ type Bus interface {
 	Publish(msg Message)
 
 	// Subscribe to the Bus. The given Subscriber will be notified
-	// whenever a message is Publish(ed) on the Bus.
-	Subscribe(sub Subscriber)
-
-	// Unsubscribe from the Bus. No further Message(s) will be
-	// received by given Subscriber.
-	Unsubscribe(sub Subscriber)
+	// whenever a message is Publish(ed) on the Bus. The returned
+	// function unsubscribes the given Subscriber.
+	Subscribe(sub Subscriber) (unsubscribe func())
 }
 
 // A WorkerBus uses a queue to buffer message that are passed
 // via Bus.Publish. Publishing on a WorkerBus will block, if the
 // queue is full or return immediately. A WorkerBus employs go-
-// routines to deliver messages to Subscriber(s).
+// routines to pick up queued messages and delivers them to
+// Subscriber(s).
 type WorkerBus interface {
 	Bus
 

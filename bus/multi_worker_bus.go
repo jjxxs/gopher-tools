@@ -1,115 +1,104 @@
 package bus
 
 import (
-	"reflect"
 	"sync"
 	"time"
 )
 
-// MultiWorkerBusMsgQueueSize - Size of the queue used by the WorkerBus
-var MultiWorkerBusMsgQueueSize = 1000
+// WorkerBusMsgQueueSize - Size of the queue used by the WorkerBus singletons
+var WorkerBusMsgQueueSize = 1000
 
 // Holds 'named' WorkerBus-singletons
-var (
-	multiWorkerBussesMtx = &sync.Mutex{}
-	multiWorkerBusses    = map[string]WorkerBus{}
-)
+var workerBusses = &sync.Map{}
 
-// GetNamedMultiWorkerBus - Provides thread-safe access to a MultiWorkerBus
-// with a specified name. Repeated calls with the same name always return
-// the same MultiWorkerBus.
-func GetNamedMultiWorkerBus(name string) WorkerBus {
-	multiWorkerBussesMtx.Lock()
-	defer multiWorkerBussesMtx.Unlock()
-	if b, ok := multiWorkerBusses[name]; ok {
-		return b
+// GetNamedWorkerBus - Provides thread-safe access to a WorkerBus with
+// a specified name. Repeated calls with the same name always return the
+// same WorkerBus.
+func GetNamedWorkerBus(name string) WorkerBus {
+	if b, ok := workerBusses.Load(name); ok {
+		return b.(WorkerBus)
 	}
-	b := NewMultiWorkerBus()
-	multiWorkerBusses[name] = b
+	b := NewWorkerBus(WorkerBusMsgQueueSize)
+	workerBusses.Store(name, b)
 	return b
 }
 
 var (
-	multiWorkerBusOnce           = &sync.Once{}
-	multiWorkerBus     WorkerBus = nil
+	workerBusOnce           = &sync.Once{}
+	workerBus     WorkerBus = nil
 )
 
 // Creates a WorkerBus that uses a go-routine for every subscriber.
-func GetMultiWorkerBus() WorkerBus {
-	multiWorkerBusOnce.Do(func() {
-		multiWorkerBus = NewMultiWorkerBus()
+func GetWorkerBus() WorkerBus {
+	workerBusOnce.Do(func() {
+		workerBus = NewWorkerBus(WorkerBusMsgQueueSize)
 	})
-	return multiWorkerBus
+	return workerBus
 }
 
-type multiWorkerBusImpl struct {
+type workerBusImpl struct {
 	subMtx *sync.RWMutex
-	subs   []subWithWorker
-	msgs   chan Message
+	subs   []*subWithQueue
+	q      chan Message
+	qLen   int
+	seq    int64
 }
 
-func (b *multiWorkerBusImpl) Stop() {
-	panic("implement me")
-}
-
-func NewMultiWorkerBus() WorkerBus {
-	b := &multiWorkerBusImpl{
+func NewWorkerBus(queueLen int) WorkerBus {
+	b := &workerBusImpl{
 		subMtx: &sync.RWMutex{},
-		subs:   []subWithWorker{},
-		msgs:   make(chan Message, MultiWorkerBusMsgQueueSize),
+		subs:   []*subWithQueue{},
+		q:      make(chan Message, queueLen),
+		qLen:   queueLen,
+		seq:    0,
 	}
 	go b.worker()
 	return b
 }
 
-func (b *multiWorkerBusImpl) Publish(msg Message) {
-	b.msgs <- msg
+func (b *workerBusImpl) Publish(msg Message) {
+	b.q <- msg
 }
 
-func (b *multiWorkerBusImpl) PublishTimeout(msg Message, timeout time.Duration) bool {
+func (b *workerBusImpl) PublishTimeout(msg Message, timeout time.Duration) bool {
 	t := time.NewTicker(timeout)
 	defer t.Stop()
 	select {
-	case b.msgs <- msg:
+	case b.q <- msg:
 		return true
 	case <-t.C:
+		return false
 	}
-	return false
 }
 
-func (b *multiWorkerBusImpl) Subscribe(sub Subscriber) {
-	var s1Id = sub
+func (b *workerBusImpl) Subscribe(sub Subscriber) (unsubscribe func()) {
 	b.subMtx.Lock()
 	defer b.subMtx.Unlock()
-	for _, s2 := range b.subs {
-		var s2Id = s2.sub
-		if &s1Id == &s2Id {
-			return // no duplicate subscribers
-		}
-	}
-	s := subWithWorker{sub: sub, q: make(chan Message, MultiWorkerBusMsgQueueSize)}
-	go s.work() // every sub has its own worker
+	b.seq++
+	s := &subWithQueue{id: b.seq, sub: sub, q: make(chan Message, b.qLen)}
+	go s.work() // start worker for this sub
 	b.subs = append(b.subs, s)
+	return b.unsubscribeId(b.seq)
 }
 
-func (b *multiWorkerBusImpl) Unsubscribe(sub Subscriber) {
-	s1Ptr := reflect.ValueOf(sub).Pointer()
-	var subs []subWithWorker
-	b.subMtx.Lock()
-	defer b.subMtx.Unlock()
-	for _, s2 := range b.subs {
-		s2Ptr := reflect.ValueOf(s2.sub).Pointer()
-		if s1Ptr != s2Ptr {
-			subs = append(subs, s2)
-		} else {
-			close(s2.q) // closing channel will stop the worker
+func (b *workerBusImpl) unsubscribeId(id int64) (unsubscribe func()) {
+	return func() {
+		b.subMtx.Lock()
+		defer b.subMtx.Unlock()
+		var subs []*subWithQueue
+		for _, sub := range b.subs {
+			if sub.id != id {
+				subs = append(subs, sub)
+			} else {
+				close(sub.q) // close subs channel with stop its worker
+			}
 		}
+		b.subs = subs
 	}
-	b.subs = subs
 }
 
-func (b *multiWorkerBusImpl) worker() {
-	for msg := range b.msgs {
+func (b *workerBusImpl) worker() {
+	for msg := range b.q {
 		b.subMtx.RLock()
 		for _, sub := range b.subs {
 			sub.q <- msg // multiplex message to all sub-queues
@@ -118,13 +107,14 @@ func (b *multiWorkerBusImpl) worker() {
 	}
 }
 
-type subWithWorker struct {
+type subWithQueue struct {
+	id  int64
 	sub Subscriber
 	q   chan Message
 }
 
-func (s *subWithWorker) work() {
+func (s *subWithQueue) work() {
 	for msg := range s.q {
-		s.sub.HandleMessage(msg)
+		s.sub(msg)
 	}
 }
