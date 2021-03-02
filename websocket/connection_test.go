@@ -51,7 +51,7 @@ func TestConnectionClientCloses(t *testing.T) {
 	_ = waitForConnectionOrFail(t, svrSideConns, 100*time.Millisecond)
 
 	// client closes connection
-	clientSideConn.Shutdown()
+	clientSideConn.Close()
 
 	// both client and server-side should fire the close-event
 	waitForCloseEventOrFail(t, srvCloseStream, 100*time.Millisecond, 1000, "")

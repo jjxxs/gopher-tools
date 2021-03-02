@@ -9,12 +9,12 @@ import (
 
 // Connection represents a connected websocket.
 type Connection interface {
-	// Send message
+	// Sends a message
 	Send(msgType int, data []byte) error
 	// Access underlying connection
 	Conn() *websocket.Conn
-	// Shutdown the connection
-	Shutdown()
+	// Closes the connection
+	Close()
 	// Address of remote endpoint (e.g. "192.0.2.1:25" or "[2001:db8::1]:80")
 	String() string
 }
@@ -22,6 +22,7 @@ type Connection interface {
 type connectionImpl struct {
 	conn         *websocket.Conn
 	shutdownOnce *sync.Once
+	stop         chan struct{}
 	sendMtx      *sync.Mutex
 	onMessage    func(this Connection, msgType int, data []byte)
 	onError      func(this Connection, err error)
@@ -33,40 +34,45 @@ func NewConnection(conn *websocket.Conn, onMessage func(this Connection, msgType
 	c := &connectionImpl{
 		conn:         conn,
 		shutdownOnce: &sync.Once{},
+		stop:         make(chan struct{}),
 		sendMtx:      &sync.Mutex{},
 		onMessage:    onMessage,
 		onError:      onError,
 		onClose:      onClose,
 	}
-
+	go c.closeWorker()
 	go c.readWorker()
-
 	return c
 }
 
-func (c *connectionImpl) Send(msgType int, data []byte) error {
+func (c *connectionImpl) Send(msgType int, data []byte) (err error) {
 	c.sendMtx.Lock()
-	err := c.conn.WriteMessage(msgType, data)
-	c.sendMtx.Unlock()
-	return err
+	defer c.sendMtx.Unlock()
+	err = c.conn.WriteMessage(msgType, data)
+	return
 }
 
 func (c *connectionImpl) Conn() *websocket.Conn {
 	return c.conn
 }
 
-func (c *connectionImpl) Shutdown() {
+func (c *connectionImpl) Close() {
 	c.shutdownOnce.Do(func() {
-		c.sendCloseMessage()
-		err := c.conn.SetReadDeadline(time.Now().Add(1 * time.Second))
-		if err != nil && c.onError != nil {
-			c.onError(c, err)
-		}
+		c.stop <- struct{}{}
 	})
 }
 
 func (c *connectionImpl) String() string {
 	return c.conn.RemoteAddr().String()
+}
+
+func (c *connectionImpl) closeWorker() {
+	<-c.stop
+	c.sendCloseMessage()
+	err := c.conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+	if err != nil && c.onError != nil {
+		c.onError(c, err)
+	}
 }
 
 func (c *connectionImpl) readWorker() {
