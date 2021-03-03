@@ -147,7 +147,7 @@ func BenchmarkMultiWorkerBusPublishPrimitive__1000_Subs(b *testing.B) {
 }
 
 // the msg to be published
-var multiWorkerBenchObj = struct {
+var workerBenchObj = struct {
 	i int
 	j int
 	s string
@@ -175,7 +175,7 @@ func BenchmarkMultiWorkerBusPublishStructByValue__1_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bu.Publish(multiWorkerBenchObj)
+		bu.Publish(workerBenchObj)
 	}
 	wg.Wait()
 }
@@ -198,7 +198,7 @@ func BenchmarkMultiWorkerBusPublishStructByValue__1000_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bu.Publish(multiWorkerBenchObj)
+		bu.Publish(workerBenchObj)
 	}
 	wg.Wait()
 }
@@ -219,7 +219,7 @@ func BenchmarkMultiWorkerBusPublishReference__1_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bu.Publish(&multiWorkerBenchObj)
+		bu.Publish(&workerBenchObj)
 	}
 	wg.Wait()
 }
@@ -242,7 +242,7 @@ func BenchmarkMultiWorkerBusPublishReference__1000_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bu.Publish(&multiWorkerBenchObj)
+		bu.Publish(&workerBenchObj)
 	}
 	wg.Wait()
 }

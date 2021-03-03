@@ -10,7 +10,7 @@ import (
 /**
  * Tests
  */
-func TestGetNamedSimpleBus(t *testing.T) {
+func TestGetNamedBus(t *testing.T) {
 	names := []string{"t1", "t2", "t3"}
 	bs := []Bus{nil, nil, nil}
 	for i, name := range names {
@@ -28,7 +28,7 @@ func TestGetNamedSimpleBus(t *testing.T) {
 	}
 }
 
-func TestGetSimpleBusShouldReturnSingleton(t *testing.T) {
+func TestGetBusShouldReturnSingleton(t *testing.T) {
 	bs := []Bus{nil, nil, nil}
 	for i := 0; i < 3; i++ {
 		bs[i] = GetBus()
@@ -51,7 +51,7 @@ func (s *busTestSub) HandleMessage(_ Message) {
 	s.c <- struct{}{}
 }
 
-func TestSimpleBusReceiverShouldReceivePublishedMessages(t *testing.T) {
+func TestBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 	b := NewBus()
 	c := make(chan struct{}, 100)
 	s := &busTestSub{c}
@@ -70,7 +70,7 @@ func TestSimpleBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 	}
 }
 
-func TestSimpleBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T) {
+func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T) {
 	b := NewBus()
 	c := make(chan struct{}, 100)
 	s := &busTestSub{c}
@@ -102,7 +102,7 @@ func TestSimpleBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *test
 /**
  * Benchmarks
  */
-func BenchmarkSimpleBusPublishPrimitive__1_Subs(b *testing.B) {
+func BenchmarkBusPublishPrimitive__1_Subs(b *testing.B) {
 	bu := NewBus()
 	c := make(chan struct{}, b.N)
 	s := busTestSub{c}
@@ -123,7 +123,7 @@ func BenchmarkSimpleBusPublishPrimitive__1_Subs(b *testing.B) {
 	wg.Wait()
 }
 
-func BenchmarkSimpleBusPublishPrimitive__1000_Subs(b *testing.B) {
+func BenchmarkBusPublishPrimitive__1000_Subs(b *testing.B) {
 	bus := NewBus()
 	c := make(chan struct{}, b.N)
 	for i := 0; i < 1000; i++ {
@@ -159,7 +159,7 @@ var simpleBenchObj = struct {
 	v: []int{1, 2, 3},
 }
 
-func BenchmarkSimpleBusPublishStructByValue__1_Subs(b *testing.B) {
+func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
 	bu := NewBus()
 	c := make(chan struct{}, b.N)
 	s := &busTestSub{c}
@@ -180,7 +180,7 @@ func BenchmarkSimpleBusPublishStructByValue__1_Subs(b *testing.B) {
 	wg.Wait()
 }
 
-func BenchmarkSimpleBusPublishStructByValue__1000_Subs(b *testing.B) {
+func BenchmarkBusPublishStructByValue__1000_Subs(b *testing.B) {
 	bu := NewBus()
 	c := make(chan struct{}, b.N)
 	for i := 0; i < 1000; i++ {
@@ -203,7 +203,7 @@ func BenchmarkSimpleBusPublishStructByValue__1000_Subs(b *testing.B) {
 	wg.Wait()
 }
 
-func BenchmarkSimpleBusPublishReference__1_Subs(b *testing.B) {
+func BenchmarkBusPublishReference__1_Subs(b *testing.B) {
 	bu := NewBus()
 	c := make(chan struct{}, b.N)
 	s := &busTestSub{c}
@@ -224,7 +224,7 @@ func BenchmarkSimpleBusPublishReference__1_Subs(b *testing.B) {
 	wg.Wait()
 }
 
-func BenchmarkSimpleBusPublishReference__1000_Subs(b *testing.B) {
+func BenchmarkBusPublishReference__1000_Subs(b *testing.B) {
 	bu := NewBus()
 	c := make(chan struct{}, b.N*1000)
 	for i := 0; i < 1000; i++ {

@@ -5,6 +5,20 @@ import (
 	"time"
 )
 
+// A WorkerBus uses a queue to buffer message that are passed
+// via Bus.Publish. Publishing on a WorkerBus will block, if the
+// queue is full or return immediately. A WorkerBus employs go-
+// routines to pick up queued messages and delivers them to
+// Subscriber(s).
+type WorkerBus interface {
+	Bus
+
+	// Publishes a message on the Bus. If the queue is full, waits
+	// a maximum amount of time before cancelling the operation.
+	// Returns true of the message was enqueued, false if not.
+	PublishTimeout(msg Message, timeout time.Duration) bool
+}
+
 // WorkerBusMsgQueueSize - Size of the queue used by the WorkerBus singletons
 var WorkerBusMsgQueueSize = 1000
 
