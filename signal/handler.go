@@ -7,23 +7,39 @@ import (
 	"sync"
 )
 
-// Handler provides functionality to register callbacks
-// that are called when the application receives a given
-// os.Signal.
+var (
+	once     = sync.Once{}
+	instance Handler
+)
+
+// Handle invokes given handler when a matching os.Signal is received.
+func Handle(handler func(sig os.Signal), signals ...os.Signal) {
+	once.Do(func() {
+		instance = NewHandler()
+	})
+	instance.Register(handler, signals...)
+}
+
+// HandleOneShot invokes given handler only once when one of the provided signals is received.
+func HandleOneShot(handler func(sig os.Signal), signals ...os.Signal) {
+	once.Do(func() {
+		instance = NewHandler()
+	})
+	instance.RegisterOneShot(handler, signals...)
+}
+
+// Handler invokes registered callbacks when a matching os.Signal is received.
 type Handler interface {
-	// Register a callback that is called when any of the
-	// provided os.Signal(s) is received.
+	// Register registers a callback that is invoked when one of the provided signals is received.
 	Register(cb func(sig os.Signal), signals ...os.Signal)
 
-	// RegisterOneShot registers a callback that is called only
-	// once and then removed from the Handler.
+	// RegisterOneShot registers a callback that is invoked only once when one of the provided signals is received.
 	RegisterOneShot(cb func(sig os.Signal), signals ...os.Signal)
 
-	// Unregister a previously registered callback.
+	// Unregister unregisters a previously registered callback.
 	Unregister(cb func(sig os.Signal))
 
-	// Exit will make the Handler stop listening for signals.
-	// Once Exit was called, the Handler is useless.
+	// Exit stops listening for signals. Callbacks will not be called anymore.
 	Exit()
 }
 

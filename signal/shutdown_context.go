@@ -1,13 +1,11 @@
-// Provides means to initiate an application-wide shutdown. Since usually
-// applications are composed of various independently acting modules, e.g.
-// database-access, web-handling etc. it is desirable to have a mechanism
-// to shut all those modules down gracefully. To use this package, create
-// a new ShutdownContext with GetShutdownContext. You can now pass this
-// context to your modules. Your modules should then register their shut-
-// down-routines via RegisterOnShutdownCallback. If you call the cancel-
-// function initially provided by GetShutdownContext, all registered call-
-// backs will be called. Call WaitForShutdownContext to wait until all of
-// the callbacks have finished.
+// Package signal provides means to initiate an application-wide shutdown. Since usually applications are
+// composed of various independently acting modules, e.g. database-access, web-handling etc. it is desirable
+// to have a mechanism to shut all those modules down gracefully.
+//
+// Create a new ShutdownContext with GetShutdownContext. Pass this context to your modules, they should register
+// their shutdown-routines with RegisterOnShutdownCallback. If the cancel-function initially provided by
+// GetShutdownContext  is called, all registered callbacks are invoked. Use WaitForShutdownContext to wait until
+// all registered callbacks have finished.
 package signal
 
 import (
@@ -18,7 +16,7 @@ import (
 
 type key string
 
-const shutdownGroupKey key = "shutdownGroupKey"
+const shutdownGroupKey key = "github.com/jjxxs/gopher-tools/signal/shutdownGroupKey"
 
 var invalidWaitGroup = errors.New("context has invalid wait-group")
 var hasNoWaitGroup = errors.New("context has no wait-group")

@@ -11,7 +11,6 @@ func GetEnvironmentOrDefault(key, def string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
 	}
-
 	return def
 }
 
@@ -21,6 +20,5 @@ func GetEnvironmentOrPanic(key string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
 	}
-
 	panic(fmt.Errorf("environment variable for %s not set", key))
 }

@@ -9,13 +9,13 @@ import (
 
 // Connection represents a connected websocket.
 type Connection interface {
-	// Sends a message
+	// Send sends a message
 	Send(msgType int, data []byte) error
-	// Access underlying connection
+	// Conn gives access to the underlying connection
 	Conn() *websocket.Conn
-	// Closes the connection
+	// Close closes the connection
 	Close()
-	// Address of remote endpoint (e.g. "192.0.2.1:25" or "[2001:db8::1]:80")
+	// String address of remote endpoint (e.g. "192.0.2.1:25" or "[2001:db8::1]:80")
 	String() string
 }
 

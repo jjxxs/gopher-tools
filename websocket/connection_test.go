@@ -59,8 +59,8 @@ func TestConnectionClientCloses(t *testing.T) {
 }
 
 func TestConcurrentConnections(t *testing.T) {
-	const concurrentConnections = 100
-	const messagesPerConnection = 10
+	const concurrentConnections = 20000
+	const messagesPerConnection = 100
 	svrSideConns := make([]Connection, concurrentConnections)
 	clientSideConns := make([]Connection, concurrentConnections)
 	svrSideMsgsReceived := 0

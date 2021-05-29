@@ -5,35 +5,37 @@ import (
 	"time"
 )
 
-// A WorkerBus uses a queue to buffer message that are passed
-// via Bus.Publish. Publishing on a WorkerBus will block, if the
-// queue is full or return immediately. A WorkerBus employs go-
-// routines to pick up queued messages and delivers them to
-// Subscriber(s).
+// A WorkerBus uses a queue to buffer message that are passed via Bus.Publish.
+// Publishing on a WorkerBus will block, if the queue is full or otherwise return
+// immediately. A WorkerBus employs go-routines to pick up queued messages and
+// delivers them to Subscriber(s).
 type WorkerBus interface {
 	Bus
 
-	// Publishes a message on the Bus. If the queue is full, waits
-	// a maximum amount of time before cancelling the operation.
-	// Returns true of the message was enqueued, false if not.
+	// PublishTimeout publishes a message on the Bus. If the queue is full, waits
+	// a maximum amount of time before cancelling the operation. Returns true of the
+	// message was enqueued, false if not.
 	PublishTimeout(msg Message, timeout time.Duration) bool
 }
 
-// WorkerBusMsgQueueSize - Size of the queue used by the WorkerBus singletons
-var WorkerBusMsgQueueSize = 1000
+// WorkerBusSingletonQueueSize - Size of the queue used by the WorkerBus singletons
+var WorkerBusSingletonQueueSize = 1000
 
-// Holds 'named' WorkerBus-singletons
-var workerBusses = &sync.Map{}
+var (
+	workerBusMtx = &sync.Mutex{}
+	workerBusses = map[string]WorkerBus{}
+)
 
-// GetNamedWorkerBus - Provides thread-safe access to a WorkerBus with
-// a specified name. Repeated calls with the same name always return the
-// same WorkerBus.
+// GetNamedWorkerBus - Provides thread-safe access to a WorkerBus singleton with
+// a specified name. Repeated calls with the same name always return the same WorkerBus.
 func GetNamedWorkerBus(name string) WorkerBus {
-	if b, ok := workerBusses.Load(name); ok {
-		return b.(WorkerBus)
+	workerBusMtx.Lock()
+	defer workerBusMtx.Unlock()
+	if b, ok := workerBusses[name]; ok {
+		return b
 	}
-	b := NewWorkerBus(WorkerBusMsgQueueSize)
-	workerBusses.Store(name, b)
+	b := NewWorkerBus(WorkerBusSingletonQueueSize)
+	workerBusses[name] = b
 	return b
 }
 
@@ -42,10 +44,10 @@ var (
 	workerBus     WorkerBus = nil
 )
 
-// Creates a WorkerBus that uses a go-routine for every subscriber.
+// GetWorkerBus - Provides thread-safe access to a WorkerBus singleton.
 func GetWorkerBus() WorkerBus {
 	workerBusOnce.Do(func() {
-		workerBus = NewWorkerBus(WorkerBusMsgQueueSize)
+		workerBus = NewWorkerBus(WorkerBusSingletonQueueSize)
 	})
 	return workerBus
 }
