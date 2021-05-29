@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="270" height="294" src="https://github.com/jjxxs/gopher-tools/blob/master/.github/media/gopher_tools_transparent.png">
+  <img width="270" height="294" src="https://github.com/jjxxs/gopher-tools/blob/master/.github/media/gopher_tools_small-transparent.png">
 </p>
 
 # gopher-tools
