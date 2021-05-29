@@ -1,11 +1,3 @@
-// Package signal provides means to initiate an application-wide shutdown. Since usually applications are
-// composed of various independently acting modules, e.g. database-access, web-handling etc. it is desirable
-// to have a mechanism to shut all those modules down gracefully.
-//
-// Create a new ShutdownContext with GetShutdownContext. Pass this context to your modules, they should register
-// their shutdown-routines with RegisterOnShutdownCallback. If the cancel-function initially provided by
-// GetShutdownContext  is called, all registered callbacks are invoked. Use WaitForShutdownContext to wait until
-// all registered callbacks have finished.
 package signal
 
 import (
@@ -13,6 +5,15 @@ import (
 	"errors"
 	"sync"
 )
+
+// Provides means to initiate an application-wide shutdown. Since usually applications are
+// composed of various independently acting modules, e.g. database-access, web-handling etc. it is desirable
+// to have a mechanism to shut all those modules down gracefully.
+//
+// Create a new ShutdownContext with GetShutdownContext. Pass this context to your modules, they should register
+// their shutdown-routines with RegisterOnShutdownCallback. If the cancel-function initially provided by
+// GetShutdownContext  is called, all registered callbacks are invoked. Use WaitForShutdownContext to wait until
+// all registered callbacks have finished.
 
 type key string
 
