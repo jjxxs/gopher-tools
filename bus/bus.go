@@ -2,7 +2,7 @@ package bus
 
 import "sync"
 
-// Type of the Message carried by this Bus - change it to a specific type if necessary.
+// Message type of the Message carried by this Bus - change it to a specific type if necessary.
 type Message = interface{}
 
 // A Subscriber is called with messages that are published on the Bus.
@@ -22,17 +22,21 @@ type Bus interface {
 	Subscribe(sub Subscriber) (unsubscribe func())
 }
 
-// Holds 'named' Bus-singletons
-var busses = &sync.Map{}
+var (
+	mtx    = &sync.Mutex{}
+	busses = map[string]Bus{}
+)
 
-// GetNamedBus - Provides thread-safe access to a Bus with a specified
+// GetNamedBus - Provides thread-safe access to a Bus singleton with a given
 // name. Repeated calls with the same name always return the same Bus.
 func GetNamedBus(name string) Bus {
-	if b, ok := busses.Load(name); ok {
-		return b.(Bus)
+	mtx.Lock()
+	defer mtx.Unlock()
+	if b, ok := busses[name]; ok {
+		return b
 	}
 	b := NewBus()
-	busses.Store(name, b)
+	busses[name] = b
 	return b
 }
 
@@ -41,9 +45,7 @@ var (
 	bus     Bus = nil
 )
 
-// GetBus - Provides thread-safe access to a Bus singleton
-// which is initialized the first time GetBus is called.
-// Repeated calls will return the same instance.
+// GetBus - Provides thread-safe access to a Bus singleton.
 func GetBus() Bus {
 	busOnce.Do(func() {
 		bus = NewBus()
@@ -57,7 +59,7 @@ type busImpl struct {
 	seq    int64
 }
 
-// Creates a simple Bus. No go-routines are employed by this Bus.
+// NewBus creates a simple Bus. No go-routines are employed by this Bus.
 // Callers of Publish will directly invoke on all Subscribers.
 func NewBus() Bus {
 	b := &busImpl{
