@@ -2,7 +2,7 @@ package bus
 
 import (
 	"reflect"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -102,48 +102,37 @@ func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T)
 /**
  * Benchmarks
  */
+
+type busBenchSub[E any] struct {
+	n uint64
+}
+
+func (s *busBenchSub[E]) HandleMessage(_ E) {
+	atomic.AddUint64(&s.n, 1)
+}
+
 func BenchmarkBusPublishPrimitive__1_Subs(b *testing.B) {
 	bu := NewBus[int]()
-	c := make(chan int, b.N)
-	s := busTestSub[int]{c}
+	s := busBenchSub[int]{0}
 	bu.Subscribe(s.HandleMessage)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for count := 0; count < b.N; count++ {
-			<-c
-		}
-		wg.Done()
-	}()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		bu.Publish(i)
 	}
-	wg.Wait()
 }
 
 func BenchmarkBusPublishPrimitive__1000_Subs(b *testing.B) {
 	bu := NewBus[int]()
-	c := make(chan int, b.N)
 	for i := 0; i < 1000; i++ {
-		s := &busTestSub[int]{c}
+		s := &busBenchSub[int]{0}
 		bu.Subscribe(s.HandleMessage)
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for count := 0; count < b.N*1000; count++ {
-			<-c
-		}
-		wg.Done()
-	}()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		bu.Publish(i)
 	}
-	wg.Wait()
 }
 
 // the msg to be published
@@ -166,85 +155,46 @@ func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
 	c := make(chan SimpleBenchObj, b.N)
 	s := &busTestSub[SimpleBenchObj]{c}
 	bu.Subscribe(s.HandleMessage)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for count := 0; count < b.N; count++ {
-			<-c
-		}
-		wg.Done()
-	}()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		bu.Publish(simpleBenchObj)
 	}
-	wg.Wait()
 }
 
 func BenchmarkBusPublishStructByValue__1000_Subs(b *testing.B) {
 	bu := NewBus[SimpleBenchObj]()
-	c := make(chan SimpleBenchObj, b.N)
 	for i := 0; i < 1000; i++ {
-		s := &busTestSub[SimpleBenchObj]{c}
+		s := &busBenchSub[SimpleBenchObj]{0}
 		bu.Subscribe(s.HandleMessage)
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for count := 0; count < b.N*1000; count++ {
-			<-c
-		}
-		wg.Done()
-	}()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		bu.Publish(simpleBenchObj)
 	}
-	wg.Wait()
 }
 
 func BenchmarkBusPublishReference__1_Subs(b *testing.B) {
 	bu := NewBus[*SimpleBenchObj]()
-	c := make(chan *SimpleBenchObj, b.N)
-	s := &busTestSub[*SimpleBenchObj]{c}
+	s := &busBenchSub[*SimpleBenchObj]{0}
 	bu.Subscribe(s.HandleMessage)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for count := 0; count < b.N; count++ {
-			<-c
-		}
-		wg.Done()
-	}()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		bu.Publish(&simpleBenchObj)
 	}
-	wg.Wait()
 }
 
 func BenchmarkBusPublishReference__1000_Subs(b *testing.B) {
 	bu := NewBus[*SimpleBenchObj]()
-	c := make(chan *SimpleBenchObj, b.N*1000)
 	for i := 0; i < 1000; i++ {
-		s := &busTestSub[*SimpleBenchObj]{c}
+		s := &busBenchSub[*SimpleBenchObj]{0}
 		bu.Subscribe(s.HandleMessage)
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for count := 0; count < b.N*1000; count++ {
-			<-c
-		}
-		wg.Done()
-	}()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		bu.Publish(&simpleBenchObj)
 	}
-	wg.Wait()
 }
