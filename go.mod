@@ -1,6 +1,6 @@
 module github.com/jjxxs/gopher-tools
 
-go 1.16
+go 1.18
 
 require (
 	github.com/gorilla/websocket v1.4.2
