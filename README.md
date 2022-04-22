@@ -60,18 +60,22 @@ myNamedWorkerBusSingleton := GetNamedWorkerBus("wsLongRequests")
 
 ##### Performance
 ```
-CPU:    Intel i7-8700k
-goos:   linux
+goos: linux
 goarch: amd64
-
-Message-Type         Subscribers       Msgs/s
--------------------------------------------------------------------------------
-Primitive                      1   17,648,115     62.8 ns/op   7 B/op   0 allocs/op
-Primitive                   1000       28,842   40,670 ns/op   8 B/op   1 allocs/op
-Struct by Value                1   12,784,874     90.6 ns/op  64 B/op   1 allocs/op
-Struct by Value             1000       28.064   39,645 ns/op  64 B/op   1 allocs/op
-Struct by Reference            1   23,651,491     51.8 ns/op   0 B/op   0 allocs/op
-Struct by Reference         1000       29,252   40,442 ns/op   0 B/op   0 allocs/op
+pkg: github.com/jjxxs/gopher-tools/bus
+cpu: Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz
+BenchmarkBusPublishPrimitive__1_Subs
+BenchmarkBusPublishPrimitive__1_Subs-12           	62088909	        19.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBusPublishPrimitive__1000_Subs
+BenchmarkBusPublishPrimitive__1000_Subs-12        	  251073	      4880 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBusPublishStructByValue__1_Subs
+BenchmarkBusPublishStructByValue__1_Subs-12       	48561636	        24.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBusPublishStructByValue__1000_Subs
+BenchmarkBusPublishStructByValue__1000_Subs-12    	  169450	      7065 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBusPublishReference__1_Subs
+BenchmarkBusPublishReference__1_Subs-12           	63486026	        18.86 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBusPublishReference__1000_Subs
+BenchmarkBusPublishReference__1000_Subs-12        	  254914	      4681 ns/op	       0 B/op	       0 allocs/op
 ```
 
 ## Signal
