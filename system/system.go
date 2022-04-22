@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -57,11 +58,24 @@ func CpuLoad() (load CpuLoadAverages, err error) {
 }
 
 // Uptime retrieves the system uptime in seconds via /proc/uptime.
-func Uptime() (up float64, err error) {
+func Uptime() (uptime int64, err error) {
 	var bs []byte
 	if bs, err = ioutil.ReadFile("/proc/uptime"); err == nil {
-		var j int
-		if j, err = fmt.Sscanf(string(bs), "%f", &up); err != nil || j != 1 {
+		if uptime, err = strconv.ParseInt(strings.Split(string(bs), ".")[0], 10, 64); err != nil {
+			err = fmt.Errorf("failed to parse output")
+		}
+	}
+	return
+}
+
+// UptimeMs retrieves the system uptime in milliseconds via /proc/uptime.
+func UptimeMs() (uptimeMs int64, err error) {
+	var bs []byte
+	if bs, err = ioutil.ReadFile("/proc/uptime"); err == nil {
+		var f64 float64
+		if f64, err = strconv.ParseFloat(strings.Split(string(bs), " ")[0], 64); err == nil {
+			uptimeMs = int64(f64 * 1000)
+		} else {
 			err = fmt.Errorf("failed to parse output")
 		}
 	}

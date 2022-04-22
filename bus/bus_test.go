@@ -12,7 +12,7 @@ import (
  */
 func TestGetNamedBus(t *testing.T) {
 	names := []string{"t1", "t2", "t3"}
-	bs := []Bus{nil, nil, nil}
+	bs := []Bus[any]{nil, nil, nil}
 	for i, name := range names {
 		bs[i] = GetNamedBus(name)
 	}
@@ -29,7 +29,7 @@ func TestGetNamedBus(t *testing.T) {
 }
 
 func TestGetBusShouldReturnSingleton(t *testing.T) {
-	bs := []Bus{nil, nil, nil}
+	bs := []Bus[any]{nil, nil, nil}
 	for i := 0; i < 3; i++ {
 		bs[i] = GetBus()
 	}
@@ -43,18 +43,18 @@ func TestGetBusShouldReturnSingleton(t *testing.T) {
 	}
 }
 
-type busTestSub struct {
-	c chan struct{}
+type busTestSub[E any] struct {
+	c chan E
 }
 
-func (s *busTestSub) HandleMessage(_ interface{}) {
-	s.c <- struct{}{}
+func (s *busTestSub[E]) HandleMessage(msg E) {
+	s.c <- msg
 }
 
 func TestBusReceiverShouldReceivePublishedMessages(t *testing.T) {
-	b := NewBus()
-	c := make(chan struct{}, 100)
-	s := &busTestSub{c}
+	b := NewBus[int]()
+	c := make(chan int, 100)
+	s := &busTestSub[int]{c}
 	b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
 		b.Publish(i)
@@ -71,9 +71,9 @@ func TestBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 }
 
 func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T) {
-	b := NewBus()
-	c := make(chan struct{}, 100)
-	s := &busTestSub{c}
+	b := NewBus[int]()
+	c := make(chan int, 100)
+	s := &busTestSub[int]{c}
 	unsubscribe := b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
 		b.Publish(i)
@@ -103,17 +103,17 @@ func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T)
  * Benchmarks
  */
 
-type busBenchSub struct {
+type busBenchSub[E any] struct {
 	n uint64
 }
 
-func (s *busBenchSub) HandleMessage(_ interface{}) {
+func (s *busBenchSub[E]) HandleMessage(_ E) {
 	atomic.AddUint64(&s.n, 1)
 }
 
 func BenchmarkBusPublishPrimitive__1_Subs(b *testing.B) {
-	bu := NewBus()
-	s := busBenchSub{0}
+	bu := NewBus[int]()
+	s := busBenchSub[int]{0}
 	bu.Subscribe(s.HandleMessage)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -123,9 +123,9 @@ func BenchmarkBusPublishPrimitive__1_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishPrimitive__1000_Subs(b *testing.B) {
-	bu := NewBus()
+	bu := NewBus[int]()
 	for i := 0; i < 1000; i++ {
-		s := &busBenchSub{0}
+		s := &busBenchSub[int]{0}
 		bu.Subscribe(s.HandleMessage)
 	}
 	b.ResetTimer()
@@ -151,8 +151,8 @@ var simpleBenchObj = SimpleBenchObj{
 }
 
 func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
-	bu := NewBus()
-	s := &busBenchSub{0}
+	bu := NewBus[SimpleBenchObj]()
+	s := &busBenchSub[SimpleBenchObj]{0}
 	bu.Subscribe(s.HandleMessage)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -162,9 +162,9 @@ func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishStructByValue__1000_Subs(b *testing.B) {
-	bu := NewBus()
+	bu := NewBus[SimpleBenchObj]()
 	for i := 0; i < 1000; i++ {
-		s := &busBenchSub{0}
+		s := &busBenchSub[SimpleBenchObj]{0}
 		bu.Subscribe(s.HandleMessage)
 	}
 	b.ResetTimer()
@@ -175,8 +175,8 @@ func BenchmarkBusPublishStructByValue__1000_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishReference__1_Subs(b *testing.B) {
-	bu := NewBus()
-	s := &busBenchSub{0}
+	bu := NewBus[*SimpleBenchObj]()
+	s := &busBenchSub[*SimpleBenchObj]{0}
 	bu.Subscribe(s.HandleMessage)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -186,9 +186,9 @@ func BenchmarkBusPublishReference__1_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishReference__1000_Subs(b *testing.B) {
-	bu := NewBus()
+	bu := NewBus[*SimpleBenchObj]()
 	for i := 0; i < 1000; i++ {
-		s := &busBenchSub{0}
+		s := &busBenchSub[*SimpleBenchObj]{0}
 		bu.Subscribe(s.HandleMessage)
 	}
 	b.ResetTimer()
