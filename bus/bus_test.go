@@ -152,8 +152,7 @@ var simpleBenchObj = SimpleBenchObj{
 
 func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
 	bu := NewBus[SimpleBenchObj]()
-	c := make(chan SimpleBenchObj, b.N)
-	s := &busTestSub[SimpleBenchObj]{c}
+	s := &busBenchSub[SimpleBenchObj]{0}
 	bu.Subscribe(s.HandleMessage)
 	b.ResetTimer()
 	b.ReportAllocs()
