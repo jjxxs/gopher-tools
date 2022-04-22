@@ -9,13 +9,13 @@ import (
 // Publishing on a WorkerBus will block, if the queue is full or otherwise return
 // immediately. A WorkerBus employs go-routines to pick up queued messages and
 // delivers them to Subscriber(s).
-type WorkerBus interface {
-	Bus
+type WorkerBus[E any] interface {
+	Bus[E]
 
 	// PublishTimeout publishes a message on the Bus. If the queue is full, waits
 	// a maximum amount of time before cancelling the operation. Returns true of the
 	// message was enqueued, false if not.
-	PublishTimeout(msg Message, timeout time.Duration) bool
+	PublishTimeout(msg E, timeout time.Duration) bool
 }
 
 // WorkerBusSingletonQueueSize - Size of the queue used by the WorkerBus singletons
@@ -23,48 +23,48 @@ var WorkerBusSingletonQueueSize = 1000
 
 var (
 	workerBusMtx = &sync.Mutex{}
-	workerBusses = map[string]WorkerBus{}
+	workerBusses = map[string]WorkerBus[any]{}
 )
 
 // GetNamedWorkerBus - Provides thread-safe access to a WorkerBus singleton with
 // a specified name. Repeated calls with the same name always return the same WorkerBus.
-func GetNamedWorkerBus(name string) WorkerBus {
+func GetNamedWorkerBus(name string) WorkerBus[any] {
 	workerBusMtx.Lock()
 	defer workerBusMtx.Unlock()
 	if b, ok := workerBusses[name]; ok {
 		return b
 	}
-	b := NewWorkerBus(WorkerBusSingletonQueueSize)
+	b := NewWorkerBus[any](WorkerBusSingletonQueueSize)
 	workerBusses[name] = b
 	return b
 }
 
 var (
-	workerBusOnce           = &sync.Once{}
-	workerBus     WorkerBus = nil
+	workerBusOnce                = &sync.Once{}
+	workerBus     WorkerBus[any] = nil
 )
 
 // GetWorkerBus - Provides thread-safe access to a WorkerBus singleton.
-func GetWorkerBus() WorkerBus {
+func GetWorkerBus() WorkerBus[any] {
 	workerBusOnce.Do(func() {
-		workerBus = NewWorkerBus(WorkerBusSingletonQueueSize)
+		workerBus = NewWorkerBus[any](WorkerBusSingletonQueueSize)
 	})
 	return workerBus
 }
 
-type workerBusImpl struct {
+type workerBusImpl[E any] struct {
 	subMtx *sync.RWMutex
-	subs   []*subWithQueue
-	q      chan Message
+	subs   []*subWithQueue[E]
+	q      chan E
 	qLen   int
 	seq    int64
 }
 
-func NewWorkerBus(queueLen int) WorkerBus {
-	b := &workerBusImpl{
+func NewWorkerBus[E any](queueLen int) WorkerBus[E] {
+	b := &workerBusImpl[E]{
 		subMtx: &sync.RWMutex{},
-		subs:   []*subWithQueue{},
-		q:      make(chan Message, queueLen),
+		subs:   []*subWithQueue[E]{},
+		q:      make(chan E, queueLen),
 		qLen:   queueLen,
 		seq:    0,
 	}
@@ -72,11 +72,11 @@ func NewWorkerBus(queueLen int) WorkerBus {
 	return b
 }
 
-func (b *workerBusImpl) Publish(msg Message) {
+func (b *workerBusImpl[E]) Publish(msg E) {
 	b.q <- msg
 }
 
-func (b *workerBusImpl) PublishTimeout(msg Message, timeout time.Duration) bool {
+func (b *workerBusImpl[E]) PublishTimeout(msg E, timeout time.Duration) bool {
 	t := time.NewTicker(timeout)
 	defer t.Stop()
 	select {
@@ -87,21 +87,21 @@ func (b *workerBusImpl) PublishTimeout(msg Message, timeout time.Duration) bool 
 	}
 }
 
-func (b *workerBusImpl) Subscribe(sub Subscriber) (unsubscribe func()) {
+func (b *workerBusImpl[E]) Subscribe(sub Subscriber[E]) (unsubscribe func()) {
 	b.subMtx.Lock()
 	defer b.subMtx.Unlock()
 	b.seq++
-	s := &subWithQueue{id: b.seq, sub: sub, q: make(chan Message, b.qLen)}
+	s := &subWithQueue[E]{id: b.seq, sub: sub, q: make(chan E, b.qLen)}
 	go s.work() // start worker for this sub
 	b.subs = append(b.subs, s)
 	return b.unsubscribeId(b.seq)
 }
 
-func (b *workerBusImpl) unsubscribeId(id int64) (unsubscribe func()) {
+func (b *workerBusImpl[E]) unsubscribeId(id int64) (unsubscribe func()) {
 	return func() {
 		b.subMtx.Lock()
 		defer b.subMtx.Unlock()
-		var subs []*subWithQueue
+		var subs []*subWithQueue[E]
 		for _, sub := range b.subs {
 			if sub.id != id {
 				subs = append(subs, sub)
@@ -113,7 +113,7 @@ func (b *workerBusImpl) unsubscribeId(id int64) (unsubscribe func()) {
 	}
 }
 
-func (b *workerBusImpl) worker() {
+func (b *workerBusImpl[E]) worker() {
 	for msg := range b.q {
 		b.subMtx.RLock()
 		for _, sub := range b.subs {
@@ -123,13 +123,13 @@ func (b *workerBusImpl) worker() {
 	}
 }
 
-type subWithQueue struct {
+type subWithQueue[E any] struct {
 	id  int64
-	sub Subscriber
-	q   chan Message
+	sub Subscriber[E]
+	q   chan E
 }
 
-func (s *subWithQueue) work() {
+func (s *subWithQueue[E]) work() {
 	for msg := range s.q {
 		s.sub(msg)
 	}
