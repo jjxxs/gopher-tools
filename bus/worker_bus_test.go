@@ -12,7 +12,7 @@ import (
  */
 func TestGetNamedMultiWorkerBus(t *testing.T) {
 	names := []string{"t1", "t2", "t3"}
-	bs := []Bus{nil, nil, nil}
+	bs := []Bus[any]{nil, nil, nil}
 	for i, name := range names {
 		bs[i] = GetNamedWorkerBus(name)
 	}
@@ -29,7 +29,7 @@ func TestGetNamedMultiWorkerBus(t *testing.T) {
 }
 
 func TestGetMultiWorkerBusShouldReturnSingleton(t *testing.T) {
-	bs := []Bus{nil, nil, nil}
+	bs := []Bus[any]{nil, nil, nil}
 	for i := 0; i < 3; i++ {
 		bs[i] = GetWorkerBus()
 	}
@@ -43,18 +43,18 @@ func TestGetMultiWorkerBusShouldReturnSingleton(t *testing.T) {
 	}
 }
 
-type workerTestSub struct {
-	c chan struct{}
+type workerTestSub[E any] struct {
+	c chan E
 }
 
-func (s *workerTestSub) HandleMessage(_ Message) {
-	s.c <- struct{}{}
+func (s *workerTestSub[E]) HandleMessage(msg E) {
+	s.c <- msg
 }
 
 func TestMultiWorkerBusReceiverShouldReceivePublishedMessages(t *testing.T) {
-	b := NewWorkerBus(100)
-	c := make(chan struct{}, 100)
-	s := &workerTestSub{c}
+	b := NewWorkerBus[int](100)
+	c := make(chan int, 100)
+	s := &workerTestSub[int]{c}
 	b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
 		b.Publish(i)
@@ -71,9 +71,9 @@ func TestMultiWorkerBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 }
 
 func TestMultiWorkerBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T) {
-	b := NewWorkerBus(100)
-	c := make(chan struct{}, 100)
-	s := &workerTestSub{c}
+	b := NewWorkerBus[int](100)
+	c := make(chan int, 100)
+	s := &workerTestSub[int]{c}
 	unsubscribe := b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
 		b.Publish(i)
@@ -103,9 +103,9 @@ func TestMultiWorkerBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t 
  * Benchmarks
  */
 func BenchmarkMultiWorkerBusPublishPrimitive__1_Subs(b *testing.B) {
-	bu := NewWorkerBus(b.N)
-	c := make(chan struct{}, b.N)
-	s := &workerTestSub{c}
+	bu := NewWorkerBus[int](b.N)
+	c := make(chan int, b.N)
+	s := &workerTestSub[int]{c}
 	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -124,10 +124,10 @@ func BenchmarkMultiWorkerBusPublishPrimitive__1_Subs(b *testing.B) {
 }
 
 func BenchmarkMultiWorkerBusPublishPrimitive__1000_Subs(b *testing.B) {
-	bu := NewWorkerBus(b.N)
-	c := make(chan struct{}, b.N)
+	bu := NewWorkerBus[int](b.N)
+	c := make(chan int, b.N)
 	for i := 0; i < 1000; i++ {
-		s := &workerTestSub{c}
+		s := &workerTestSub[int]{c}
 		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
@@ -147,12 +147,14 @@ func BenchmarkMultiWorkerBusPublishPrimitive__1000_Subs(b *testing.B) {
 }
 
 // the msg to be published
-var workerBenchObj = struct {
+type WorkerBenchObj = struct {
 	i int
 	j int
 	s string
 	v []int
-}{
+}
+
+var workerBenchObj = WorkerBenchObj{
 	i: 1,
 	j: 2,
 	s: "myArg1",
@@ -160,9 +162,9 @@ var workerBenchObj = struct {
 }
 
 func BenchmarkMultiWorkerBusPublishStructByValue__1_Subs(b *testing.B) {
-	bu := NewWorkerBus(b.N)
-	c := make(chan struct{}, b.N)
-	s := &workerTestSub{c}
+	bu := NewWorkerBus[WorkerBenchObj](b.N)
+	c := make(chan WorkerBenchObj, b.N)
+	s := &workerTestSub[WorkerBenchObj]{c}
 	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -181,10 +183,10 @@ func BenchmarkMultiWorkerBusPublishStructByValue__1_Subs(b *testing.B) {
 }
 
 func BenchmarkMultiWorkerBusPublishStructByValue__1000_Subs(b *testing.B) {
-	bu := NewWorkerBus(b.N)
-	c := make(chan struct{}, b.N)
+	bu := NewWorkerBus[WorkerBenchObj](b.N)
+	c := make(chan WorkerBenchObj, b.N)
 	for i := 0; i < 1000; i++ {
-		s := &workerTestSub{c}
+		s := &workerTestSub[WorkerBenchObj]{c}
 		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
@@ -204,9 +206,9 @@ func BenchmarkMultiWorkerBusPublishStructByValue__1000_Subs(b *testing.B) {
 }
 
 func BenchmarkMultiWorkerBusPublishReference__1_Subs(b *testing.B) {
-	bu := NewWorkerBus(b.N)
-	c := make(chan struct{}, b.N)
-	s := &workerTestSub{c}
+	bu := NewWorkerBus[*WorkerBenchObj](b.N)
+	c := make(chan *WorkerBenchObj, b.N)
+	s := &workerTestSub[*WorkerBenchObj]{c}
 	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -225,10 +227,10 @@ func BenchmarkMultiWorkerBusPublishReference__1_Subs(b *testing.B) {
 }
 
 func BenchmarkMultiWorkerBusPublishReference__1000_Subs(b *testing.B) {
-	bu := NewWorkerBus(b.N)
-	c := make(chan struct{}, b.N*1000)
+	bu := NewWorkerBus[*WorkerBenchObj](b.N)
+	c := make(chan *WorkerBenchObj, b.N*1000)
 	for i := 0; i < 1000; i++ {
-		s := &workerTestSub{c}
+		s := &workerTestSub[*WorkerBenchObj]{c}
 		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
