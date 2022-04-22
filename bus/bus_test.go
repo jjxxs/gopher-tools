@@ -12,7 +12,7 @@ import (
  */
 func TestGetNamedBus(t *testing.T) {
 	names := []string{"t1", "t2", "t3"}
-	bs := []Bus{nil, nil, nil}
+	bs := []Bus[any]{nil, nil, nil}
 	for i, name := range names {
 		bs[i] = GetNamedBus(name)
 	}
@@ -29,7 +29,7 @@ func TestGetNamedBus(t *testing.T) {
 }
 
 func TestGetBusShouldReturnSingleton(t *testing.T) {
-	bs := []Bus{nil, nil, nil}
+	bs := []Bus[any]{nil, nil, nil}
 	for i := 0; i < 3; i++ {
 		bs[i] = GetBus()
 	}
@@ -43,18 +43,18 @@ func TestGetBusShouldReturnSingleton(t *testing.T) {
 	}
 }
 
-type busTestSub struct {
-	c chan struct{}
+type busTestSub[E any] struct {
+	c chan E
 }
 
-func (s *busTestSub) HandleMessage(_ Message) {
-	s.c <- struct{}{}
+func (s *busTestSub[E]) HandleMessage(msg E) {
+	s.c <- msg
 }
 
 func TestBusReceiverShouldReceivePublishedMessages(t *testing.T) {
-	b := NewBus()
-	c := make(chan struct{}, 100)
-	s := &busTestSub{c}
+	b := NewBus[int]()
+	c := make(chan int, 100)
+	s := &busTestSub[int]{c}
 	b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
 		b.Publish(i)
@@ -71,9 +71,9 @@ func TestBusReceiverShouldReceivePublishedMessages(t *testing.T) {
 }
 
 func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T) {
-	b := NewBus()
-	c := make(chan struct{}, 100)
-	s := &busTestSub{c}
+	b := NewBus[int]()
+	c := make(chan int, 100)
+	s := &busTestSub[int]{c}
 	unsubscribe := b.Subscribe(s.HandleMessage)
 	for i := 0; i < 100; i++ {
 		b.Publish(i)
@@ -103,9 +103,9 @@ func TestBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t *testing.T)
  * Benchmarks
  */
 func BenchmarkBusPublishPrimitive__1_Subs(b *testing.B) {
-	bu := NewBus()
-	c := make(chan struct{}, b.N)
-	s := busTestSub{c}
+	bu := NewBus[int]()
+	c := make(chan int, b.N)
+	s := busTestSub[int]{c}
 	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -124,11 +124,11 @@ func BenchmarkBusPublishPrimitive__1_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishPrimitive__1000_Subs(b *testing.B) {
-	bus := NewBus()
-	c := make(chan struct{}, b.N)
+	bu := NewBus[int]()
+	c := make(chan int, b.N)
 	for i := 0; i < 1000; i++ {
-		s := &busTestSub{c}
-		bus.Subscribe(s.HandleMessage)
+		s := &busTestSub[int]{c}
+		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -141,18 +141,20 @@ func BenchmarkBusPublishPrimitive__1000_Subs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		bus.Publish(i)
+		bu.Publish(i)
 	}
 	wg.Wait()
 }
 
 // the msg to be published
-var simpleBenchObj = struct {
+type SimpleBenchObj struct {
 	i int
 	j int
 	s string
 	v []int
-}{
+}
+
+var simpleBenchObj = SimpleBenchObj{
 	i: 1,
 	j: 2,
 	s: "myArg1",
@@ -160,9 +162,9 @@ var simpleBenchObj = struct {
 }
 
 func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
-	bu := NewBus()
-	c := make(chan struct{}, b.N)
-	s := &busTestSub{c}
+	bu := NewBus[SimpleBenchObj]()
+	c := make(chan SimpleBenchObj, b.N)
+	s := &busTestSub[SimpleBenchObj]{c}
 	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -181,10 +183,10 @@ func BenchmarkBusPublishStructByValue__1_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishStructByValue__1000_Subs(b *testing.B) {
-	bu := NewBus()
-	c := make(chan struct{}, b.N)
+	bu := NewBus[SimpleBenchObj]()
+	c := make(chan SimpleBenchObj, b.N)
 	for i := 0; i < 1000; i++ {
-		s := &busTestSub{c}
+		s := &busTestSub[SimpleBenchObj]{c}
 		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
@@ -204,9 +206,9 @@ func BenchmarkBusPublishStructByValue__1000_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishReference__1_Subs(b *testing.B) {
-	bu := NewBus()
-	c := make(chan struct{}, b.N)
-	s := &busTestSub{c}
+	bu := NewBus[*SimpleBenchObj]()
+	c := make(chan *SimpleBenchObj, b.N)
+	s := &busTestSub[*SimpleBenchObj]{c}
 	bu.Subscribe(s.HandleMessage)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -225,10 +227,10 @@ func BenchmarkBusPublishReference__1_Subs(b *testing.B) {
 }
 
 func BenchmarkBusPublishReference__1000_Subs(b *testing.B) {
-	bu := NewBus()
-	c := make(chan struct{}, b.N*1000)
+	bu := NewBus[*SimpleBenchObj]()
+	c := make(chan *SimpleBenchObj, b.N*1000)
 	for i := 0; i < 1000; i++ {
-		s := &busTestSub{c}
+		s := &busTestSub[*SimpleBenchObj]{c}
 		bu.Subscribe(s.HandleMessage)
 	}
 	wg := &sync.WaitGroup{}
