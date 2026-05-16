@@ -58,7 +58,7 @@ func (c *connectionImpl) Conn() *websocket.Conn {
 
 func (c *connectionImpl) Close() {
 	c.shutdownOnce.Do(func() {
-		c.stop <- struct{}{}
+		close(c.stop)
 	})
 }
 
