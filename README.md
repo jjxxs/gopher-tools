@@ -3,7 +3,7 @@
 </p>
 
 # gopher-tools
-[![Build Status](https://travis-ci.org/jjxxs/gopher-tools.svg?branch=develop)](https://travis-ci.org/jjxxs/gopher-tools)
+[![Test](https://github.com/jjxxs/gopher-tools/actions/workflows/gotest.yml/badge.svg?branch=master)](https://github.com/jjxxs/gopher-tools/actions/workflows/gotest.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jjxxs/gopher-tools)](https://goreportcard.com/report/github.com/jjxxs/gopher-tools)
 [![Release](https://img.shields.io/github/v/release/jjxxs/gopher-tools.svg)](https://github.com/jjxxs/gopher-tools/releases/latest)
 [![License](https://img.shields.io/github/license/jjxxs/gopher-tools)](/LICENSE)
