@@ -76,8 +76,14 @@ func (b *workerBusImpl[E]) Publish(msg E) {
 	b.q <- msg
 }
 
+// PublishTimeout publishes a message on the Bus, waiting up to timeout for
+// queue space. A non-positive timeout returns false immediately without
+// attempting a send.
 func (b *workerBusImpl[E]) PublishTimeout(msg E, timeout time.Duration) bool {
-	t := time.NewTicker(timeout)
+	if timeout <= 0 {
+		return false
+	}
+	t := time.NewTimer(timeout)
 	defer t.Stop()
 	select {
 	case b.q <- msg:

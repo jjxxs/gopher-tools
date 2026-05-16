@@ -19,8 +19,8 @@ type key string
 
 const shutdownGroupKey key = "github.com/jjxxs/gopher-tools/signal/shutdownGroupKey"
 
-var invalidWaitGroup = errors.New("context has invalid wait-group")
-var hasNoWaitGroup = errors.New("context has no wait-group")
+var errInvalidWaitGroup = errors.New("context has invalid wait-group")
+var errHasNoWaitGroup = errors.New("context has no wait-group")
 
 // GetShutdownContext decorates a given context and returns it together
 // with a cancel-function. RegisterOnShutdownCallback can now be used
@@ -41,10 +41,10 @@ func WaitForShutdownContext(ctx context.Context) error {
 		if shutdownGroup, ok := val.(*sync.WaitGroup); ok {
 			shutdownGroup.Wait()
 		} else {
-			return invalidWaitGroup
+			return errInvalidWaitGroup
 		}
 	} else {
-		return hasNoWaitGroup
+		return errHasNoWaitGroup
 	}
 	return nil
 }
@@ -61,10 +61,10 @@ func RegisterOnShutdownCallback(ctx context.Context, callback func()) error {
 				shutdownGroup.Done()
 			}()
 		} else {
-			return invalidWaitGroup
+			return errInvalidWaitGroup
 		}
 	} else {
-		return hasNoWaitGroup
+		return errHasNoWaitGroup
 	}
 	return nil
 }

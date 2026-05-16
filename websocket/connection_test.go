@@ -58,6 +58,49 @@ func TestConnectionClientCloses(t *testing.T) {
 	waitForCloseEventOrFail(t, clientCloseStream, 100*time.Millisecond, 1000, "")
 }
 
+func TestConnectionCloseIsIdempotent(t *testing.T) {
+	closeStream, closeHandler := getCloseEventStream()
+	svrSideConns := serverAcceptConnectAt(t, t.Name(), nil, closeHandler, nil)
+	clientConn := clientConnectToServerAt(t, t.Name(), nil, nil, nil)
+	_ = waitForConnectionOrFail(t, svrSideConns, 100*time.Millisecond)
+
+	// Two Close() calls in a row must not panic — sync.Once + close(c.stop)
+	// is the guarantee under test.
+	clientConn.Close()
+	clientConn.Close()
+
+	// Server should observe exactly one close event.
+	waitForCloseEventOrFail(t, closeStream, 100*time.Millisecond, 1000, "")
+	select {
+	case <-closeStream:
+		t.Fatal("server observed a second close event from an idempotent Close()")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestConnectionConcurrentClose(t *testing.T) {
+	svrSideConns := serverAcceptConnectAt(t, t.Name(), nil, nil, nil)
+	clientConn := clientConnectToServerAt(t, t.Name(), nil, nil, nil)
+	_ = waitForConnectionOrFail(t, svrSideConns, 100*time.Millisecond)
+
+	// N goroutines racing on Close() must neither panic nor deadlock.
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			clientConn.Close()
+		}()
+	}
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("concurrent Close() calls deadlocked")
+	}
+}
+
 func TestConcurrentConnections(t *testing.T) {
 	const concurrentConnections = 100
 	const messagesPerConnection = 10

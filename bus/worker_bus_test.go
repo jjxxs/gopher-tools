@@ -100,6 +100,60 @@ func TestMultiWorkerBusReceiverShouldNotReceivePublishMessageAfterUnsubscribe(t 
 }
 
 /**
+ * PublishTimeout edge cases (regression coverage for the Ticker→Timer fix).
+ */
+func TestPublishTimeoutSucceedsWhenSpaceAvailable(t *testing.T) {
+	b := NewWorkerBus[int](10)
+	if !b.PublishTimeout(42, 100*time.Millisecond) {
+		t.Fatal("expected PublishTimeout to return true when queue has space")
+	}
+}
+
+func TestPublishTimeoutReturnsFalseWhenQueueFull(t *testing.T) {
+	b := NewWorkerBus[int](1)
+	block := make(chan struct{})
+	defer close(block)
+	b.Subscribe(func(int) { <-block })
+
+	// Pump until the queue saturates. With the subscriber blocked, the
+	// 1-deep input queue and 1-deep sub queue will fill within a few sends.
+	saturated := false
+	for i := 0; i < 100; i++ {
+		if !b.PublishTimeout(i, 10*time.Millisecond) {
+			saturated = true
+			break
+		}
+	}
+	if !saturated {
+		t.Fatal("PublishTimeout never returned false despite blocked subscriber")
+	}
+
+	// On a saturated queue, the timeout must actually elapse.
+	start := time.Now()
+	if b.PublishTimeout(99, 50*time.Millisecond) {
+		t.Fatal("expected PublishTimeout to return false on a saturated queue")
+	}
+	if elapsed := time.Since(start); elapsed < 40*time.Millisecond {
+		t.Fatalf("PublishTimeout returned too quickly on saturated queue: %v", elapsed)
+	}
+}
+
+func TestPublishTimeoutNonPositiveReturnsFalseImmediately(t *testing.T) {
+	b := NewWorkerBus[int](10)
+	for _, timeout := range []time.Duration{0, -time.Second} {
+		start := time.Now()
+		ok := b.PublishTimeout(42, timeout)
+		elapsed := time.Since(start)
+		if ok {
+			t.Errorf("timeout=%v: expected PublishTimeout to return false", timeout)
+		}
+		if elapsed > 10*time.Millisecond {
+			t.Errorf("timeout=%v: returned too slowly (%v) — non-positive must short-circuit", timeout, elapsed)
+		}
+	}
+}
+
+/**
  * Benchmarks
  */
 func BenchmarkMultiWorkerBusPublishPrimitive__1_Subs(b *testing.B) {

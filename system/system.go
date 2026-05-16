@@ -2,7 +2,7 @@ package system
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -48,7 +48,7 @@ type CpuLoadAverages struct {
 // CpuLoad retrieves the average cpu load over past 1, 5, 15 minutes via /proc/loadavg.
 func CpuLoad() (load CpuLoadAverages, err error) {
 	var bs []byte
-	if bs, err = ioutil.ReadFile("/proc/loadavg"); err == nil {
+	if bs, err = os.ReadFile("/proc/loadavg"); err == nil {
 		var j int
 		if j, err = fmt.Sscanf(string(bs), "%f %f %f", &load.Avg1, &load.Avg5, &load.Avg15); err != nil || j != 3 {
 			err = fmt.Errorf("failed to parse output")
@@ -60,7 +60,7 @@ func CpuLoad() (load CpuLoadAverages, err error) {
 // Uptime retrieves the system uptime in seconds via /proc/uptime.
 func Uptime() (uptime int64, err error) {
 	var bs []byte
-	if bs, err = ioutil.ReadFile("/proc/uptime"); err == nil {
+	if bs, err = os.ReadFile("/proc/uptime"); err == nil {
 		if uptime, err = strconv.ParseInt(strings.Split(string(bs), ".")[0], 10, 64); err != nil {
 			err = fmt.Errorf("failed to parse output")
 		}
@@ -71,7 +71,7 @@ func Uptime() (uptime int64, err error) {
 // UptimeMs retrieves the system uptime in milliseconds via /proc/uptime.
 func UptimeMs() (uptimeMs int64, err error) {
 	var bs []byte
-	if bs, err = ioutil.ReadFile("/proc/uptime"); err == nil {
+	if bs, err = os.ReadFile("/proc/uptime"); err == nil {
 		var f64 float64
 		if f64, err = strconv.ParseFloat(strings.Split(string(bs), " ")[0], 64); err == nil {
 			uptimeMs = int64(f64 * 1000)
