@@ -2,6 +2,7 @@ package signal
 
 import (
 	"os"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -9,47 +10,43 @@ import (
 
 func TestHandlerShouldCallCallbacks(t *testing.T) {
 	handler := NewHandler()
-	countSigUsr1 := 0
-	countSigUsr2 := 0
-	other := 0
+	var countSigUsr1, countSigUsr2, other atomic.Int32
 	handler.Register(func(signal os.Signal) {
 		switch signal {
 		case syscall.SIGUSR1:
-			countSigUsr1++
+			countSigUsr1.Add(1)
 		case syscall.SIGUSR2:
-			countSigUsr2++
+			countSigUsr2.Add(1)
 		default:
-			other++
+			other.Add(1)
 		}
 	}, syscall.SIGUSR1, syscall.SIGUSR2)
 	p, _ := os.FindProcess(os.Getpid())
 	_ = p.Signal(syscall.SIGUSR1)
 	_ = p.Signal(syscall.SIGUSR2)
 	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
-	if countSigUsr1 != 1 {
+	if countSigUsr1.Load() != 1 {
 		t.Fail()
 	}
-	if countSigUsr2 != 1 {
+	if countSigUsr2.Load() != 1 {
 		t.Fail()
 	}
-	if other != 0 {
+	if other.Load() != 0 {
 		t.Fail()
 	}
 }
 
 func TestHandlerShouldNotCallAfterUnregister(t *testing.T) {
 	handler := NewHandler()
-	countSigUsr1 := 0
-	countSigUsr2 := 0
-	other := 0
+	var countSigUsr1, countSigUsr2, other atomic.Int32
 	cb := func(signal os.Signal) {
 		switch signal {
 		case syscall.SIGUSR1:
-			countSigUsr1++
+			countSigUsr1.Add(1)
 		case syscall.SIGUSR2:
-			countSigUsr2++
+			countSigUsr2.Add(1)
 		default:
-			other++
+			other.Add(1)
 		}
 	}
 	handler.Register(cb, syscall.SIGUSR1, syscall.SIGUSR2)
@@ -61,22 +58,22 @@ func TestHandlerShouldNotCallAfterUnregister(t *testing.T) {
 	_ = p.Signal(syscall.SIGUSR1) // these shouldn't be received
 	_ = p.Signal(syscall.SIGUSR2)
 	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
-	if countSigUsr1 != 1 {
+	if countSigUsr1.Load() != 1 {
 		t.Fail()
 	}
-	if countSigUsr2 != 1 {
+	if countSigUsr2.Load() != 1 {
 		t.Fail()
 	}
-	if other != 0 {
+	if other.Load() != 0 {
 		t.Fail()
 	}
 }
 
 func TestHandlerShouldNotCallAfterExit(t *testing.T) {
 	handler := NewHandler()
-	count := 0
+	var count atomic.Int32
 	handler.Register(func(signal os.Signal) {
-		count++
+		count.Add(1)
 	}, syscall.SIGUSR1)
 	p, _ := os.FindProcess(os.Getpid())
 	_ = p.Signal(syscall.SIGUSR1)      // should be received
@@ -84,7 +81,7 @@ func TestHandlerShouldNotCallAfterExit(t *testing.T) {
 	handler.Exit()
 	_ = p.Signal(syscall.SIGUSR1)      // should not be received
 	time.Sleep(100 * time.Millisecond) // signals are delivered async, wait a little
-	if count != 1 {
+	if count.Load() != 1 {
 		t.Fail()
 	}
 }
